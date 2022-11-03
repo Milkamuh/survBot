@@ -1,0 +1,37 @@
+# Parameters file for Surveillance Bot
+datapath: '/data/SDS/'      # SC3 Datapath
+networks: ['1Y', 'HA']
+stations: '*'
+locations: '*'
+channels: ['EX1', 'EX2', 'EX3', 'VEI']    # Specify SOH channels, currently supported EX[1-3] and VEI
+stations_blacklist: ['TEST', 'EREA']
+networks_blacklist: []
+interval: 20               # Perform checks every x seconds
+timespan: 7                # Check data of the recent x days
+verbosity: 0
+track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
+
+POWBOX:
+  pb_ok: 1  # Voltage for PowBox OK
+  pb_SOH2: # PowBox channel 2 voltage translations
+    1: {"230V": 'OK', "12V": "OK"}
+    2: {"230V": "OFF", "12V": "OK"}
+    3: {"230V": "OK", "12V": "overvoltage"}
+    4: {"230V": "OK", "12V": "undervoltage"}
+    4.5: {"230V": "OFF", "12V": "overvoltage"}
+    5: {"230V": "OFF", "12V": "undervoltage"}
+  pb_SOH3: # PowBox channel 3 voltage translations
+    1: {"router": "OK", "charger": "OK"}
+    2: {"router": "OK", "charger": "0 < resets < 3"}
+    2.5: {"router": "OK", "charger": "locked"}
+    3: {"router": "FAIL", "charger": "OK"}
+    4: {"router": "FAIL", "charger": "0 < resets < 3"}
+    5: {"router": "FAIL", "charger": "locked"}
+
+
+THRESHOLDS:
+  pb_thresh: 0.2               # Threshold for PowBox Voltage check +/- (V)
+  max_temp: 50                 # max temperature for temperature warning
+  low_volt: 12                 # min voltage for low voltage warning
+  high_volt: 14.8               # max voltage for over voltage warning
+  unclassified: 5              # min voltage samples not classified for warning
