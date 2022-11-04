@@ -411,7 +411,7 @@ class StationQC(object):
         if self.verbosity > 1:
             self.print(40 * '-')
             self.print('Performing PowBox 12V/230V check (EX2)', flush=False)
-        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key)
+        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, warn_keys=keys)
         if voltage_check:
             for key in keys:
                 self.status_ok(key)
@@ -432,7 +432,7 @@ class StationQC(object):
         if self.verbosity > 1:
             self.print(40 * '-')
             self.print('Performing PowBox Router/Charger check (EX3)', flush=False)
-        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key)
+        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, warn_keys=keys)
         if voltage_check:
             for key in keys:
                 self.status_ok(key)
@@ -477,7 +477,7 @@ class StationQC(object):
             return
         return trace
 
-    def pb_voltage_ok(self, trace, voltage, pb_dict_key):
+    def pb_voltage_ok(self, trace, voltage, pb_dict_key, warn_keys):
         """
         Checks if voltage level is ok everywhere and returns True. If it is not okay it returns a dictionary
         with each voltage value associated to the different steps specified in POWBOX > pb_steps. Also raises
@@ -499,12 +499,15 @@ class StationQC(object):
 
         # Warn in case of voltage under OK-level (1V)
         if len(under) > 0:
-            self.warn(key='other',
-                      message=f'Trace {trace.get_id()}: '
-                              f'Voltage below {pb_ok}V {len(under)} times. '
-                              f'Mean voltage: {np.mean(voltage)}'
-                              + self.get_last_occurrence_timestring(trace, under),
-                      status_message='UNDER 1V')
+            # try calculate number of occurences from gaps between indices
+            n_occurrences = len(np.where(np.diff(under) > 1)[0]) + 1
+            for key in warn_keys:
+                self.warn(key=key,
+                          message=f'Trace {trace.get_id()}: '
+                                  f'Voltage below {pb_ok}V {len(under)} times. '
+                                  f'Mean voltage: {np.mean(voltage)}'
+                                  + self.get_last_occurrence_timestring(trace, under),
+                          status_message='WARN ({})'.format(n_occurrences))
 
         # Get voltage levels for classification
         voltage_dict = {}
