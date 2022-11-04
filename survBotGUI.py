@@ -177,7 +177,6 @@ class MainWindow(QtWidgets.QMainWindow):
         An event filter that stores last mouse position if an event is raised by the table. All events are passed
         to the parent class of the Mainwindow afterwards.
         """
-        print(object, event)
         if hasattr(event, 'pos'):
             self.last_mouse_loc = event.pos()
         return super(QtWidgets.QMainWindow, self).eventFilter(object, event)
