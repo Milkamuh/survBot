@@ -1,5 +1,6 @@
 # Parameters file for Surveillance Bot
 datapath: '/data/SDS/'      # SC3 Datapath
+outpath_html: '/home/marcel/tmp/survBot_out.html' # output of HTML table
 networks: ['1Y', 'HA']
 stations: '*'
 locations: '*'

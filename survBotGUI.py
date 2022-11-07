@@ -9,7 +9,7 @@ __author__ = 'Marcel Paffrath'
 import os
 import sys
 import traceback
-from datetime import timedelta
+import argparse
 
 try:
     from PySide2 import QtGui, QtCore, QtWidgets
@@ -34,6 +34,7 @@ else:
 from obspy import UTCDateTime
 
 from survBot import SurveillanceBot
+from write_utils import *
 
 try:
     from rest_api.utils import get_station_iccid
@@ -95,6 +96,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # init some attributes
         self.dt_thresh = dt_thresh
         self.last_mouse_loc = None
+        self.status_message = ''
         self.starttime = UTCDateTime()
 
         # setup main layout of the GUI
@@ -181,6 +183,41 @@ class MainWindow(QtWidgets.QMainWindow):
             self.last_mouse_loc = event.pos()
         return super(QtWidgets.QMainWindow, self).eventFilter(object, event)
 
+    def write_html_table(self):
+        fnout = self.parameters.get('outpath_html')
+        if not fnout:
+            return
+        try:
+            with open(fnout, 'w') as outfile:
+                write_html_header(outfile)
+                #write_html_table_title(outfile, self.parameters)
+                init_html_table(outfile)
+                nrows = self.table.rowCount()
+                ncolumns = self.table.columnCount()
+
+                # add header item 0 fix default black bg color for headers
+                station_header = QtWidgets.QTableWidgetItem(text='Station')
+                station_header.setText('Station')
+                header_items = [station_header]
+                for column in range(ncolumns):
+                    hheader = self.table.horizontalHeaderItem(column)
+                    header_items.append(hheader)
+                write_html_row(outfile, header_items, html_key='th')
+
+                for row in range(nrows):
+                    vheader = self.table.verticalHeaderItem(row)
+                    col_items = [vheader]
+                    for column in range(ncolumns):
+                        col_items.append(self.table.item(row, column))
+                    write_html_row(outfile, col_items)
+
+                finish_html_table(outfile)
+                write_html_text(outfile, self.status_message)
+                write_html_footer(outfile)
+        except Exception as e:
+            print(f'Could not write HTML table to {fnout}:')
+            print(e)
+
     def sms_context_menu(self, row_ind):
         """ Open a context menu when left-clicking vertical header item """
         header_item = self.table.verticalHeaderItem(row_ind)
@@ -225,11 +262,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def fill_status_bar(self):
         """ Set status bar text """
-        status_bar = self.statusBar()
         timespan = timedelta(seconds=int(self.parameters.get('timespan') * 24 * 3600))
-        status_bar.showMessage(f'Program starttime (UTC) {self.starttime.strftime("%Y-%m-%d %H:%M:%S")} | '
-                               f'Refresh period: {self.refresh_period}s | '
-                               f'Showing data of last {timespan}')
+        self.status_message = f'Program starttime (UTC) {self.starttime.strftime("%Y-%m-%d %H:%M:%S")} | ' \
+                              f'Current time (UTC) {UTCDateTime().strftime("%Y-%m-%d %H:%M:%S")} | ' \
+                              f'Refresh period: {self.refresh_period}s | '\
+                              f'Showing data of last {timespan}'
+        status_bar = self.statusBar()
+        status_bar.showMessage(self.status_message)
 
     def fill_table(self):
         """ Fills the table with most recent information. Executed after execute_qc thread is done or on refresh. """
@@ -291,6 +330,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # table filling/refreshing done, set clear_on_refresh to False
         self.clear_on_refresh = False
+        # write html output if parameter is set
+        self.write_html_table()
 
     def get_time_delay_color(self, dt):
         """ Set color of time delay after thresholds specified in self.dt_thresh """

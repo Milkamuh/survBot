@@ -13,10 +13,13 @@ import numpy as np
 from obspy import read, UTCDateTime, Stream
 from obspy.clients.filesystem.sds import Client
 
+from write_utils import get_print_title_str
+
 pjoin = os.path.join
 UP = "\x1B[{length}A"
 CLR = "\x1B[0K"
 deg_str = '\N{DEGREE SIGN}C'
+
 
 def read_yaml(file_path):
     with open(file_path, "r") as f:
@@ -30,7 +33,7 @@ def nsl_from_id(st_id):
 
 def get_st_id(trace):
     stats = trace.stats
-    return f'{stats.network}.{stats.station}.'#{stats.location}'
+    return f'{stats.network}.{stats.station}.'  # {stats.location}'
 
 
 def fancy_timestr(dt, thresh=600, modif='+'):
@@ -60,7 +63,7 @@ class SurveillanceBot(object):
         self.print_count = 0
         self.refresh_period = 0
 
-        self.cl = Client(self.parameters.get('datapath')) #TODO: Check if this has to be loaded again on update
+        self.cl = Client(self.parameters.get('datapath'))  # TODO: Check if this has to be loaded again on update
         self.get_stations()
 
     def transform_parameters(self):
@@ -99,7 +102,7 @@ class SurveillanceBot(object):
                 for location in locations:
                     for channel in channels:
                         self.filenames += list(self.cl._get_filenames(network, station, location, channel,
-                                                                 starttime=t1, endtime=time_now))
+                                                                      starttime=t1, endtime=time_now))
 
     def read_data(self):
         self.data = {}
@@ -183,11 +186,13 @@ class SurveillanceBot(object):
         if len(times) > 0:
             return min(times)
 
+    def print_analysis_html(self, filename):
+        with open(filename, 'w') as outfile:
+            pass
+
     def print_analysis(self):
-        timespan = self.parameters.get('timespan') * 24 * 3600
-        self.print(200*'+')
-        tdelta_str = str(timedelta(seconds=int(timespan)))
-        title_str = f'Analysis table of router quality within the last {tdelta_str}'
+        self.print(200 * '+')
+        title_str = get_print_title_str(self.parameters)
         self.print(title_str)
         if self.refresh_period > 0:
             self.print(f'Refreshing every {self.refresh_period}s.')
@@ -224,8 +229,8 @@ class SurveillanceBot(object):
         n_nl = string.count('\n')
         string.replace('\n', clear_end)
         print(string, end=clear_end, **kwargs)
-        self.print_count += n_nl + 1 #number of newlines + actual print with end='\n' (no check for kwargs end!)
-        #print('pc:', self.print_count)
+        self.print_count += n_nl + 1  # number of newlines + actual print with end='\n' (no check for kwargs end!)
+        # print('pc:', self.print_count)
 
     def clear_prints(self):
         print(UP.format(length=self.print_count), end='')
@@ -300,7 +305,7 @@ class StationQC(object):
 
     def analyse_channels(self):
         if self.verbosity > 0:
-            self.print(150*'#')
+            self.print(150 * '#')
             self.print('This is StationQT. Calculating quality for station'
                        ' {network}.{station}.{location}'.format(**self.nsl))
         self.voltage_analysis()
@@ -333,7 +338,7 @@ class StationQC(object):
 
     def voltage_analysis(self, channel='VEI'):
         """ Analyse voltage channel for over/undervoltage """
-        key='voltage'
+        key = 'voltage'
         st = self.stream.select(channel=channel)
         trace = self.get_trace(st, key)
         if not trace: return
@@ -367,7 +372,7 @@ class StationQC(object):
 
     def pb_temp_analysis(self, channel='EX1'):
         """ Analyse PowBox temperature output. """
-        key='temp'
+        key = 'temp'
         st = self.stream.select(channel=channel)
         trace = self.get_trace(st, key)
         if not trace: return
@@ -375,7 +380,7 @@ class StationQC(object):
         thresholds = self.parameters.get('THRESHOLDS')
         temp = 20. * voltage - 20
         # average temp
-        timespan = min([self.parameters.get('timespan') * 24 * 3600, int(len(temp)/trace.stats.sampling_rate)])
+        timespan = min([self.parameters.get('timespan') * 24 * 3600, int(len(temp) / trace.stats.sampling_rate)])
         nsamp_av = int(trace.stats.sampling_rate) * timespan
         av_temp_str = str(round(np.mean(temp[-nsamp_av:]), 1)) + deg_str
         # dt of average
