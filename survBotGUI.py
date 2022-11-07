@@ -25,7 +25,7 @@ except ImportError:
 import matplotlib
 from matplotlib.figure import Figure
 
-if QtGui.__package__ in ['PySide2', 'PyQt5']:
+if QtGui.__package__ in ['PySide2', 'PyQt5', 'PySide6']:
     from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
     from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 else:
