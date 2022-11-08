@@ -435,15 +435,18 @@ class StationQC(object):
             self.status_ok(key, message=f'U={(voltage[-1])}V')
             return
 
-        # try calculate number of voltage peaks from gaps between indices
-        n_overvolt = len(np.where(np.diff(overvolt) > 1)[0]) + 1
-        n_undervolt = len(np.where(np.diff(undervolt) > 1)[0]) + 1
+        n_overvolt = 0
+        n_undervolt = 0
 
         warn_message = f'Trace {trace.get_id()}:'
         if len(overvolt) > 0:
+            # try calculate number of voltage peaks from gaps between indices
+            n_overvolt = len(np.where(np.diff(overvolt) > 1)[0]) + 1
             warn_message += f' {n_overvolt}x Voltage over {high_volt}V' \
                             + self.get_last_occurrence_timestring(trace, overvolt)
         if len(undervolt) > 0:
+            # try calculate number of voltage peaks from gaps between indices
+            n_undervolt = len(np.where(np.diff(undervolt) > 1)[0]) + 1
             warn_message += f' {n_undervolt}x Voltage under {low_volt}V ' \
                             + self.get_last_occurrence_timestring(trace, undervolt)
         self.warn(key, detailed_message=warn_message, status_message='WARN ({})'.format(n_overvolt + n_undervolt))
@@ -589,7 +592,7 @@ class StationQC(object):
             for key in warn_keys:
                 self.warn(key=key,
                           detailed_message=f'Trace {trace.get_id()}: '
-                                  f'Voltage below {pb_ok}V {len(under)} times. '
+                                  f'Voltage below {pb_ok}V in {len(under)} samples, {n_occurrences} time(s). '
                                   f'Mean voltage: {np.mean(voltage):.2}'
                                            + self.get_last_occurrence_timestring(trace, under),
                           status_message='WARN ({})'.format(n_occurrences))
