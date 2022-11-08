@@ -1,4 +1,5 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 GUI overlay for the main survBot to show quality control of different stations specified in parameters.yaml file.
 """
@@ -77,7 +78,7 @@ class Thread(QtCore.QThread):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, parameters='parameters.yaml', dt_thresh=(300, 1800)):
+    def __init__(self, parameters='parameters.yaml', outpath_html=None, dt_thresh=(300, 1800)):
         """
         Main window of survBot GUI.
         :param parameters: Parameters dictionary file (yaml format)
@@ -98,6 +99,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.last_mouse_loc = None
         self.status_message = ''
         self.starttime = UTCDateTime()
+        self.outpath_html = outpath_html
 
         # setup main layout of the GUI
         self.main_layout = QtWidgets.QVBoxLayout()
@@ -184,12 +186,12 @@ class MainWindow(QtWidgets.QMainWindow):
         return super(QtWidgets.QMainWindow, self).eventFilter(object, event)
 
     def write_html_table(self):
-        fnout = self.parameters.get('outpath_html')
+        fnout = self.outpath_html
         if not fnout:
             return
         try:
             with open(fnout, 'w') as outfile:
-                write_html_header(outfile)
+                write_html_header(outfile, self.refresh_period)
                 #write_html_table_title(outfile, self.parameters)
                 init_html_table(outfile)
                 nrows = self.table.rowCount()
@@ -272,6 +274,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def fill_table(self):
         """ Fills the table with most recent information. Executed after execute_qc thread is done or on refresh. """
+
+        # fill status bar first with new time
+        self.fill_status_bar()
+
         for col_ind, check_key in enumerate(self.survBot.keys):
             for row_ind, st_id in enumerate(self.survBot.station_list):
                 status_dict, detailed_dict = self.survBot.analysis_results.get(st_id)
@@ -501,9 +507,15 @@ class SendSMSWidget(QtWidgets.QDialog):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Call survBot GUI')
+    parser.add_argument('-html', dest='html_filename', default=None, help='filename for HTML output')
+    parser.add_argument('--background', dest='background', default=False, action='store_true', help='run in background')
+    args = parser.parse_args()
+
     program_path = sys.path[0]
     parameters = os.path.join(program_path, 'parameters.yaml')
     app = QtWidgets.QApplication([])
-    window = MainWindow(parameters=parameters)
-    window.showMaximized()
+    window = MainWindow(parameters=parameters, outpath_html=args.html_filename)
+    if not args.background:
+        window.showMaximized()
     sys.exit(app.exec_())

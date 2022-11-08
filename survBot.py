@@ -1,4 +1,5 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
 __version__ = '0.1'
 __author__ = 'Marcel Paffrath'
@@ -510,7 +511,7 @@ class StationQC(object):
                 self.warn(key=key,
                           message=f'Trace {trace.get_id()}: '
                                   f'Voltage below {pb_ok}V {len(under)} times. '
-                                  f'Mean voltage: {np.mean(voltage)}'
+                                  f'Mean voltage: {np.mean(voltage):.2}'
                                   + self.get_last_occurrence_timestring(trace, under),
                           status_message='WARN ({})'.format(n_occurrences))
 
