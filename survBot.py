@@ -271,12 +271,20 @@ class StationQC(object):
         if message:
             self.detailed_status_dict[key] = message
 
-    def warn(self, key, message, status_message='WARN'):
-        self.detailed_status_dict[key] = message
-        self.status_dict[key] = status_message
+    def warn(self, key, detailed_message, status_message='WARN'):
+        # update detailed status if already existing
+        current_message = self.detailed_status_dict.get(key)
+        current_message = '' if current_message in [None, '-'] else current_message + ' | '
+        self.detailed_status_dict[key] = current_message + detailed_message
+
+        # this is becoming a little bit too complicated (adding warnings to existing)
+        current_status_message = self.status_dict.get(key)
+        current_status_message = '' if current_status_message in [None, 'OK', '-'] else current_status_message + ' | '
+        self.status_dict[key] = current_status_message + status_message
+
         # change this to something more useful, SMS/EMAIL/PUSH
         if self.verbosity:
-            self.print(f'{UTCDateTime()}: {message}', flush=False)
+            self.print(f'{UTCDateTime()}: {detailed_message}', flush=False)
         # warnings.warn(message)
 
     def error(self, key, message):
@@ -369,7 +377,7 @@ class StationQC(object):
         if len(undervolt) > 0:
             warn_message += f' {n_undervolt}x Voltage under {low_volt}V ' \
                             + self.get_last_occurrence_timestring(trace, undervolt)
-        self.warn(key, message=warn_message, status_message='WARN ({})'.format(n_overvolt + n_undervolt))
+        self.warn(key, detailed_message=warn_message, status_message='WARN ({})'.format(n_overvolt + n_undervolt))
 
     def pb_temp_analysis(self, channel='EX1'):
         """ Analyse PowBox temperature output. """
@@ -399,9 +407,9 @@ class StationQC(object):
         if len(t_check) > 0:
             self.warn(key=key,
                       status_message=cur_temp,
-                      message=f'Trace {trace.get_id()}: '
+                      detailed_message=f'Trace {trace.get_id()}: '
                               f'Temperature over {max_temp}\N{DEGREE SIGN} at {trace.get_id()}!'
-                              + self.get_last_occurrence_timestring(trace, t_check))
+                                       + self.get_last_occurrence_timestring(trace, t_check))
         else:
             self.status_ok(key,
                            status_message=cur_temp,
@@ -417,7 +425,8 @@ class StationQC(object):
         if self.verbosity > 1:
             self.print(40 * '-')
             self.print('Performing PowBox 12V/230V check (EX2)', flush=False)
-        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, warn_keys=keys)
+        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, channel=channel,
+                                                                   warn_keys=keys)
         if voltage_check:
             for key in keys:
                 self.status_ok(key)
@@ -438,7 +447,8 @@ class StationQC(object):
         if self.verbosity > 1:
             self.print(40 * '-')
             self.print('Performing PowBox Router/Charger check (EX3)', flush=False)
-        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, warn_keys=keys)
+        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, channel=channel,
+                                                                   warn_keys=keys)
         if voltage_check:
             for key in keys:
                 self.status_ok(key)
@@ -460,9 +470,9 @@ class StationQC(object):
                     # try calculate number of voltage peaks from gaps between indices
                     n_occurrences = len(np.where(np.diff(ind_array) > 1)[0]) + 1
                     self.warn(key=key,
-                              message=f'Trace {trace.get_id()}: '
+                              detailed_message=f'Trace {trace.get_id()}: '
                                       f'Found {n_occurrences} occurrence(s) of {volt_lvl}V: {key}: {message}'
-                                      + self.get_last_occurrence_timestring(trace, ind_array),
+                                               + self.get_last_occurrence_timestring(trace, ind_array),
                               status_message='WARN ({})'.format(n_occurrences))
                     if last_val != 1:
                         self.error(key, message=f'Last PowBox voltage state {last_val}V: {message}')
@@ -483,7 +493,7 @@ class StationQC(object):
             return
         return trace
 
-    def pb_voltage_ok(self, trace, voltage, pb_dict_key, warn_keys):
+    def pb_voltage_ok(self, trace, voltage, pb_dict_key, warn_keys, channel=None):
         """
         Checks if voltage level is ok everywhere and returns True. If it is not okay it returns a dictionary
         with each voltage value associated to the different steps specified in POWBOX > pb_steps. Also raises
@@ -509,10 +519,10 @@ class StationQC(object):
             n_occurrences = len(np.where(np.diff(under) > 1)[0]) + 1
             for key in warn_keys:
                 self.warn(key=key,
-                          message=f'Trace {trace.get_id()}: '
+                          detailed_message=f'Trace {trace.get_id()}: '
                                   f'Voltage below {pb_ok}V {len(under)} times. '
                                   f'Mean voltage: {np.mean(voltage):.2}'
-                                  + self.get_last_occurrence_timestring(trace, under),
+                                           + self.get_last_occurrence_timestring(trace, under),
                           status_message='WARN ({})'.format(n_occurrences))
 
         # Get voltage levels for classification
@@ -540,10 +550,10 @@ class StationQC(object):
             n_unclassified = len(unclassified_indices)
             max_uncl = self.parameters.get('THRESHOLDS').get('unclassified')
             if max_uncl and n_unclassified > max_uncl:
-                self.warn(key='other', message=f'Trace {trace.get_id()}: '
+                self.warn(key='other', detailed_message=f'Trace {trace.get_id()}: '
                                                f'{n_unclassified}/{len(all_indices)} '
                                                f'unclassified voltage values in channel {trace.get_id()}',
-                          status_message=f'{n_unclassified} UNCLASSIFIED')
+                          status_message=f'{channel}: {n_unclassified} u')
 
         return False, voltage_dict, last_val
 
