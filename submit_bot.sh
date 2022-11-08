@@ -17,5 +17,4 @@ export MKL_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 
-
-python survBotGUI.py -html '/home/marcel/public_html/survBot_out.html' --background
+python survBot.py -html '/home/marcel/public_html/survBot_out.html'

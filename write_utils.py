@@ -37,10 +37,10 @@ def write_html_row(fobj, items, html_key='td'):
     default_space = '  '
     fobj.write(default_space + '<tr>\n')
     for item in items:
-        text = item.text()
-        tooltip = item.toolTip()
-        color = item.backgroundColor().name()
-        # fix for black background of headers
+        text = item.get('text')
+        tooltip = item.get('tooltip')
+        color = item.get('color')
+        # check for black background of headers (shouldnt happen anymore)
         color = '#e6e6e6' if color == '#000000' else color
         fobj.write(2 * default_space + f'<{html_key} bgcolor="{color}" title="{tooltip}">' + text + f'</{html_key}>\n')
     fobj.write(default_space + '</tr>\n')

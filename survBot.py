@@ -5,7 +5,9 @@ __version__ = '0.1'
 __author__ = 'Marcel Paffrath'
 
 import os
+import traceback
 import yaml
+import argparse
 
 import time
 from datetime import timedelta
@@ -14,7 +16,9 @@ import numpy as np
 from obspy import read, UTCDateTime, Stream
 from obspy.clients.filesystem.sds import Client
 
-from write_utils import get_print_title_str
+from write_utils import write_html_text, write_html_row, write_html_footer, write_html_header, get_print_title_str,\
+    init_html_table, finish_html_table
+from utils import get_bg_color
 
 pjoin = os.path.join
 UP = "\x1B[{length}A"
@@ -46,26 +50,34 @@ def fancy_timestr(dt, thresh=600, modif='+'):
 
 
 class SurveillanceBot(object):
-    def __init__(self, parameter_path):
+    def __init__(self, parameter_path, outpath_html=None):
         self.keys = ['last active', '230V', '12V', 'router', 'charger', 'voltage', 'temp', 'other']
-        self.parameters = read_yaml(parameter_path)
-        self.transform_parameters()
+        self.parameter_path = parameter_path
+        self.update_parameters()
         self.starttime = UTCDateTime()
-        self.verbosity = self.parameters.get('verbosity')
+        self.outpath_html = outpath_html
         self.filenames = []
         self.filenames_read = []
         self.station_list = []
         self.analysis_print_list = []
         self.analysis_results = {}
-        self.stations_blacklist = self.parameters.get('stations_blacklist')
-        self.networks_blacklist = self.parameters.get('networks_blacklist')
         self.dataStream = Stream()
         self.data = {}
         self.print_count = 0
-        self.refresh_period = 0
+        self.status_message = ''
 
         self.cl = Client(self.parameters.get('datapath'))  # TODO: Check if this has to be loaded again on update
         self.get_stations()
+
+    def update_parameters(self):
+        self.parameters = read_yaml(self.parameter_path)
+        self.reread_parameters = self.parameters.get('reread_parameters')
+        self.dt_thresh = [int(val) for val in self.parameters.get('dt_thresh')]
+        self.verbosity = self.parameters.get('verbosity')
+        self.stations_blacklist = self.parameters.get('stations_blacklist')
+        self.networks_blacklist = self.parameters.get('networks_blacklist')
+        self.refresh_period = self.parameters.get('interval')
+        self.transform_parameters()
 
     def transform_parameters(self):
         for key in ['networks', 'stations', 'locations', 'channels']:
@@ -132,9 +144,11 @@ class SurveillanceBot(object):
             self.data[st_id].append(trace)
 
     def execute_qc(self):
-        self.starttime = UTCDateTime()
+        if self.reread_parameters:
+            self.update_parameters()
         self.get_filenames()
         self.read_data()
+        qc_starttime = UTCDateTime()
 
         self.analysis_print_list = []
         self.analysis_results = {}
@@ -142,7 +156,7 @@ class SurveillanceBot(object):
             stream = self.data.get(st_id)
             if stream:
                 nsl = nsl_from_id(st_id)
-                station_qc = StationQC(stream, nsl, self.parameters, self.keys, self.starttime, self.verbosity,
+                station_qc = StationQC(stream, nsl, self.parameters, self.keys, qc_starttime, self.verbosity,
                                        print_func=self.print)
                 analysis_print_result = station_qc.return_print_analysis()
                 station_dict, warn_dict = station_qc.return_analysis()
@@ -151,6 +165,8 @@ class SurveillanceBot(object):
                 station_dict, warn_dict = self.get_no_data_station(st_id)
             self.analysis_print_list.append(analysis_print_result)
             self.analysis_results[st_id] = (station_dict, warn_dict)
+
+        self.update_status_message()
         return 'ok'
 
     def get_no_data_station(self, st_id, no_data='-', to_print=False):
@@ -187,10 +203,6 @@ class SurveillanceBot(object):
         if len(times) > 0:
             return min(times)
 
-    def print_analysis_html(self, filename):
-        with open(filename, 'w') as outfile:
-            pass
-
     def print_analysis(self):
         self.print(200 * '+')
         title_str = get_print_title_str(self.parameters)
@@ -202,19 +214,22 @@ class SurveillanceBot(object):
         for items in self.analysis_print_list:
             self.console_print(items)
 
-    def start(self, refresh_period=30):
+    def start(self):
         '''
         Perform qc periodically.
         :param refresh_period: Update every x seconds
         :return:
         '''
-        self.refresh_period = refresh_period
         status = 'ok'
         while status == 'ok' and self.refresh_period > 0:
             status = self.execute_qc()
-            self.print_analysis()
+            if self.outpath_html:
+                self.write_html_table()
+            else:
+                self.print_analysis()
             time.sleep(self.refresh_period)
-            self.clear_prints()
+            if not self.outpath_html:
+                self.clear_prints()
 
     def console_print(self, itemlist, str_len=21, sep='|', seplen=3):
         assert len(sep) <= seplen, f'Make sure seperator has less than {seplen} characters'
@@ -224,6 +239,60 @@ class SurveillanceBot(object):
         for item in itemlist:
             string += item.center(str_len) + sr
         self.print(string, flush=False)
+
+    def write_html_table(self, default_color='#e6e6e6'):
+        fnout = self.outpath_html
+        if not fnout:
+            return
+        try:
+            with open(fnout, 'w') as outfile:
+                write_html_header(outfile, self.refresh_period)
+                #write_html_table_title(outfile, self.parameters)
+                init_html_table(outfile)
+
+                # First write header items
+                header_items = [dict(text='Station', color=default_color)]
+                for check_key in self.keys:
+                    item = dict(text=check_key, color=default_color)
+                    header_items.append(item)
+                write_html_row(outfile, header_items, html_key='th')
+
+                # Write all cells
+                for st_id in self.station_list:
+                    col_items = [dict(text=st_id.rstrip('.'), color=default_color)]
+                    for check_key in self.keys:
+                        status_dict, detailed_dict = self.analysis_results.get(st_id)
+                        status = status_dict.get(check_key)
+
+                        # get background color
+                        dt_thresh = [timedelta(seconds=sec) for sec in self.dt_thresh]
+                        bg_color = get_bg_color(check_key, status, dt_thresh, hex=True)
+                        if not bg_color:
+                            bg_color = default_color
+
+                        # add degree sign for temp
+                        if check_key == 'temp':
+                            if not type(status) in [str]:
+                                status = str(status) + deg_str
+
+                        item = dict(text=str(status), tooltip=str(detailed_dict.get(check_key)),
+                                    color=bg_color)
+                        col_items.append(item)
+                    write_html_row(outfile, col_items)
+
+                finish_html_table(outfile)
+                write_html_text(outfile, self.status_message)
+                write_html_footer(outfile)
+        except Exception as e:
+            print(f'Could not write HTML table to {fnout}:')
+            print(traceback.format_exc())
+
+    def update_status_message(self):
+        timespan = timedelta(seconds=int(self.parameters.get('timespan') * 24 * 3600))
+        self.status_message = f'Program starttime (UTC) {self.starttime.strftime("%Y-%m-%d %H:%M:%S")} | ' \
+                              f'Current time (UTC) {UTCDateTime().strftime("%Y-%m-%d %H:%M:%S")} | ' \
+                              f'Refresh period: {self.refresh_period}s | '\
+                              f'Showing data of last {timespan}'
 
     def print(self, string, **kwargs):
         clear_end = CLR + '\n'
@@ -553,7 +622,7 @@ class StationQC(object):
                 self.warn(key='other', detailed_message=f'Trace {trace.get_id()}: '
                                                f'{n_unclassified}/{len(all_indices)} '
                                                f'unclassified voltage values in channel {trace.get_id()}',
-                          status_message=f'{channel}: {n_unclassified} u')
+                          status_message=f'{channel}: {n_unclassified} uncl.')
 
         return False, voltage_dict, last_val
 
@@ -563,5 +632,9 @@ class StationQC(object):
 
 
 if __name__ == '__main__':
-    survBot = SurveillanceBot(parameter_path='parameters.yaml')
-    survBot.start(refresh_period=30)
+    parser = argparse.ArgumentParser(description='Call survBot')
+    parser.add_argument('-html', dest='html_filename', default=None, help='filename for HTML output')
+    args = parser.parse_args()
+
+    survBot = SurveillanceBot(parameter_path='parameters.yaml', outpath_html=args.html_filename)
+    survBot.start()

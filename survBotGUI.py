@@ -10,7 +10,6 @@ __author__ = 'Marcel Paffrath'
 import os
 import sys
 import traceback
-import argparse
 
 try:
     from PySide2 import QtGui, QtCore, QtWidgets
@@ -36,6 +35,7 @@ from obspy import UTCDateTime
 
 from survBot import SurveillanceBot
 from write_utils import *
+from utils import get_bg_color
 
 try:
     from rest_api.utils import get_station_iccid
@@ -78,28 +78,17 @@ class Thread(QtCore.QThread):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, parameters='parameters.yaml', outpath_html=None, dt_thresh=(300, 1800)):
+    def __init__(self, parameters='parameters.yaml'):
         """
         Main window of survBot GUI.
         :param parameters: Parameters dictionary file (yaml format)
-        :param dt_thresh: threshold for timing delay colourisation (yellow/red)
         """
         super(MainWindow, self).__init__()
 
-        # some GUI default colors
-        self.colors_dict = {'FAIL': (255, 50, 0, 255),
-                            'NO DATA': (255, 255, 125, 255),
-                            'WARN': (255, 255, 125, 255),
-                            'WARNX': lambda x: (min([255, 200 + x**2]), 255, 125, 255),
-                            'OK': (125, 255, 125, 255),
-                            'undefined': (230, 230, 230, 255)}
-
         # init some attributes
-        self.dt_thresh = dt_thresh
         self.last_mouse_loc = None
         self.status_message = ''
         self.starttime = UTCDateTime()
-        self.outpath_html = outpath_html
 
         # setup main layout of the GUI
         self.main_layout = QtWidgets.QVBoxLayout()
@@ -111,6 +100,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.survBot = SurveillanceBot(parameter_path=parameters)
         self.parameters = self.survBot.parameters
         self.refresh_period = self.parameters.get('interval')
+        self.dt_thresh = [int(val) for val in self.parameters.get('dt_thresh')]
 
         # create thread that is used to update
         self.thread = Thread(parent=self, runnable=self.survBot.execute_qc)
@@ -185,41 +175,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.last_mouse_loc = event.pos()
         return super(QtWidgets.QMainWindow, self).eventFilter(object, event)
 
-    def write_html_table(self):
-        fnout = self.outpath_html
-        if not fnout:
-            return
-        try:
-            with open(fnout, 'w') as outfile:
-                write_html_header(outfile, self.refresh_period)
-                #write_html_table_title(outfile, self.parameters)
-                init_html_table(outfile)
-                nrows = self.table.rowCount()
-                ncolumns = self.table.columnCount()
-
-                # add header item 0 fix default black bg color for headers
-                station_header = QtWidgets.QTableWidgetItem(text='Station')
-                station_header.setText('Station')
-                header_items = [station_header]
-                for column in range(ncolumns):
-                    hheader = self.table.horizontalHeaderItem(column)
-                    header_items.append(hheader)
-                write_html_row(outfile, header_items, html_key='th')
-
-                for row in range(nrows):
-                    vheader = self.table.verticalHeaderItem(row)
-                    col_items = [vheader]
-                    for column in range(ncolumns):
-                        col_items.append(self.table.item(row, column))
-                    write_html_row(outfile, col_items)
-
-                finish_html_table(outfile)
-                write_html_text(outfile, self.status_message)
-                write_html_footer(outfile)
-        except Exception as e:
-            print(f'Could not write HTML table to {fnout}:')
-            print(e)
-
     def sms_context_menu(self, row_ind):
         """ Open a context menu when left-clicking vertical header item """
         header_item = self.table.verticalHeaderItem(row_ind)
@@ -264,11 +219,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def fill_status_bar(self):
         """ Set status bar text """
-        timespan = timedelta(seconds=int(self.parameters.get('timespan') * 24 * 3600))
-        self.status_message = f'Program starttime (UTC) {self.starttime.strftime("%Y-%m-%d %H:%M:%S")} | ' \
-                              f'Current time (UTC) {UTCDateTime().strftime("%Y-%m-%d %H:%M:%S")} | ' \
-                              f'Refresh period: {self.refresh_period}s | '\
-                              f'Showing data of last {timespan}'
+        self.status_message = self.survBot.status_message
         status_bar = self.statusBar()
         status_bar.showMessage(self.status_message)
 
@@ -283,21 +234,12 @@ class MainWindow(QtWidgets.QMainWindow):
                 status_dict, detailed_dict = self.survBot.analysis_results.get(st_id)
                 status = status_dict.get(check_key)
                 detailed_message = detailed_dict.get(check_key)
-                if check_key == 'last active':
-                    bg_color = self.get_time_delay_color(status)
-                elif check_key == 'temp':
-                    bg_color = self.get_temp_color(status)
+
+                dt_thresh = [timedelta(seconds=sec) for sec in self.dt_thresh]
+                bg_color = get_bg_color(check_key, status, dt_thresh)
+                if check_key == 'temp':
                     if not type(status) in [str]:
                         status = str(status) + deg_str
-                else:
-                    statussplit = status.split(' ')
-                    if len(statussplit) > 1 and statussplit[0] == 'WARN':
-                        x = int(status.split(' ')[-1].lstrip('(').rstrip(')'))
-                        bg_color = self.colors_dict.get('WARNX')(x)
-                    else:
-                        bg_color = self.colors_dict.get(status)
-                if not bg_color:
-                    bg_color = self.colors_dict.get('undefined')
 
                 # Continue if nothing changed
                 text = str(status)
@@ -336,26 +278,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # table filling/refreshing done, set clear_on_refresh to False
         self.clear_on_refresh = False
-        # write html output if parameter is set
-        self.write_html_table()
-
-    def get_time_delay_color(self, dt):
-        """ Set color of time delay after thresholds specified in self.dt_thresh """
-        dt_thresh = [timedelta(seconds=sec) for sec in self.dt_thresh]
-        if dt < dt_thresh[0]:
-            return self.colors_dict.get('OK')
-        elif dt_thresh[0] <= dt < dt_thresh[1]:
-            return self.colors_dict.get('WARN')
-        return self.colors_dict.get('FAIL')
-
-    def get_temp_color(self, temp, vmin=-10, vmax=60, cmap='coolwarm'):
-        """ Get an rgba temperature value back from specified cmap, linearly interpolated between vmin and vmax. """
-        if type(temp) in [str]:
-            return self.colors_dict.get('undefined')
-        cmap = matplotlib.cm.get_cmap(cmap)
-        val = (temp - vmin) / (vmax - vmin)
-        rgba = [int(255 * c) for c in cmap(val)]
-        return rgba
 
     def set_font_bold(self, item):
         """ Set item font bold """
@@ -507,15 +429,9 @@ class SendSMSWidget(QtWidgets.QDialog):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Call survBot GUI')
-    parser.add_argument('-html', dest='html_filename', default=None, help='filename for HTML output')
-    parser.add_argument('--background', dest='background', default=False, action='store_true', help='run in background')
-    args = parser.parse_args()
-
     program_path = sys.path[0]
     parameters = os.path.join(program_path, 'parameters.yaml')
     app = QtWidgets.QApplication([])
-    window = MainWindow(parameters=parameters, outpath_html=args.html_filename)
-    if not args.background:
-        window.showMaximized()
+    window = MainWindow(parameters=parameters)
+    window.showMaximized()
     sys.exit(app.exec_())
