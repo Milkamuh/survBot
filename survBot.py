@@ -589,13 +589,12 @@ class StationQC(object):
         if len(under) > 0:
             # try calculate number of occurences from gaps between indices
             n_occurrences = len(np.where(np.diff(under) > 1)[0]) + 1
-            for key in warn_keys:
-                self.warn(key=key,
-                          detailed_message=f'Trace {trace.get_id()}: '
-                                  f'Voltage below {pb_ok}V in {len(under)} samples, {n_occurrences} time(s). '
-                                  f'Mean voltage: {np.mean(voltage):.2}'
-                                           + self.get_last_occurrence_timestring(trace, under),
-                          status_message='WARN ({})'.format(n_occurrences))
+            self.warn(key='other',
+                      detailed_message=f'Trace {trace.get_id()}: '
+                              f'Voltage below {pb_ok}V in {len(under)} samples, {n_occurrences} time(s). '
+                              f'Mean voltage: {np.mean(voltage):.2}'
+                                       + self.get_last_occurrence_timestring(trace, under),
+                      status_message='under 1V ({})'.format(n_occurrences))
 
         # Get voltage levels for classification
         voltage_dict = {}
