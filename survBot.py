@@ -67,6 +67,7 @@ class SurveillanceBot(object):
         self.data = {}
         self.print_count = 0
         self.status_message = ''
+        self.html_fig_dir = 'figures'
 
         self.cl = Client(self.parameters.get('datapath'))  # TODO: Check if this has to be loaded again on update
         self.get_stations()
@@ -260,13 +261,23 @@ class SurveillanceBot(object):
     def get_fig_path_abs(self, st_id):
         return pjoin(self.outpath_html, self.get_fig_path_rel(st_id))
 
-    def get_fig_path_rel(self, st_id):
-        return os.path.join('figures', f'{st_id.rstrip(".")}.png')
+    def get_fig_path_rel(self, st_id, fig_format='png'):
+        return os.path.join(self.html_fig_dir, f'{st_id.rstrip(".")}.{fig_format}')
+
+    def check_fig_dir(self):
+        fdir = pjoin(self.outpath_html, self.html_fig_dir)
+        if not os.path.isdir(fdir):
+            os.mkdir(fdir)
+
+    def check_html_dir(self):
+        if not os.path.isdir(self.outpath_html):
+            os.mkdir(self.outpath_html)
 
     def write_html_figures(self, check_plot_time=True):
         """ Write figures for html, right now hardcoded hourly """
         if check_plot_time and not self.check_plot_hour():
             return
+        self.check_fig_dir()
 
         for st_id in self.station_list:
             fig = plt.figure(figsize=(16, 9))
@@ -280,6 +291,7 @@ class SurveillanceBot(object):
             plt.close(fig)
 
     def write_html_table(self, default_color='#e6e6e6'):
+        self.check_html_dir()
         fnout = pjoin(self.outpath_html, 'survBot_out.html')
         if not fnout:
             return
@@ -675,8 +687,8 @@ class StationQC(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Call survBot')
-    parser.add_argument('-html', dest='html_filename', default=None, help='filename for HTML output')
+    parser.add_argument('-html', dest='html_path', default=None, help='filepath for HTML output')
     args = parser.parse_args()
 
-    survBot = SurveillanceBot(parameter_path='parameters.yaml', outpath_html=args.html_filename)
+    survBot = SurveillanceBot(parameter_path='parameters.yaml', outpath_html=args.html_path)
     survBot.start()

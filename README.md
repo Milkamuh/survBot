@@ -26,10 +26,10 @@ to use the GUI:
 
 Configurations of *datapath*, *networks*, *stations* etc. can be done in the **parameters.yaml** input file.
 
-The main program is executed by entering
+The main program with html output is executed by entering
 
 ```shell script
-python survBot.py
+python survBot.py -html path_for_html_output
 ```
 
 The GUI can be loaded via

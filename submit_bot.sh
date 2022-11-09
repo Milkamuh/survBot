@@ -7,8 +7,6 @@ ulimit -s 8192
 #$ -pe smp 1
 #$ -N survBot_bg
 
-export PYTHONPATH="$PYTHONPATH:/home/marcel/git/code_base/"
-
 source /opt/anaconda3/etc/profile.d/conda.sh
 conda activate py37
 
