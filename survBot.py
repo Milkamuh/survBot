@@ -12,6 +12,7 @@ import argparse
 import time
 from datetime import timedelta
 import numpy as np
+import matplotlib.pyplot as plt
 
 from obspy import read, UTCDateTime, Stream
 from obspy.clients.filesystem.sds import Client
@@ -55,6 +56,7 @@ class SurveillanceBot(object):
         self.parameter_path = parameter_path
         self.update_parameters()
         self.starttime = UTCDateTime()
+        self.plot_hour = self.starttime.hour
         self.outpath_html = outpath_html
         self.filenames = []
         self.filenames_read = []
@@ -220,16 +222,20 @@ class SurveillanceBot(object):
         :param refresh_period: Update every x seconds
         :return:
         '''
+        first_exec = True
         status = 'ok'
         while status == 'ok' and self.refresh_period > 0:
             status = self.execute_qc()
             if self.outpath_html:
                 self.write_html_table()
+                if self.parameters.get('html_figures'):
+                    self.write_html_figures(check_plot_time=not(first_exec))
             else:
                 self.print_analysis()
             time.sleep(self.refresh_period)
             if not self.outpath_html:
                 self.clear_prints()
+            first_exec = False
 
     def console_print(self, itemlist, str_len=21, sep='|', seplen=3):
         assert len(sep) <= seplen, f'Make sure seperator has less than {seplen} characters'
@@ -240,8 +246,41 @@ class SurveillanceBot(object):
             string += item.center(str_len) + sr
         self.print(string, flush=False)
 
+    def check_plot_hour(self):
+        ''' Check if new hour started '''
+        current_hour = UTCDateTime().hour
+        if not current_hour > self.plot_hour:
+            return False
+        if current_hour == 23:
+            self.plot_hour = 0
+        else:
+            self.plot_hour += 1
+        return True
+
+    def get_fig_path_abs(self, st_id):
+        return pjoin(self.outpath_html, self.get_fig_path_rel(st_id))
+
+    def get_fig_path_rel(self, st_id):
+        return os.path.join('figures', f'{st_id.rstrip(".")}.png')
+
+    def write_html_figures(self, check_plot_time=True):
+        """ Write figures for html, right now hardcoded hourly """
+        if check_plot_time and not self.check_plot_hour():
+            return
+
+        for st_id in self.station_list:
+            fig = plt.figure(figsize=(16, 9))
+            fnout = self.get_fig_path_abs(st_id)
+            st = self.data.get(st_id)
+            if st:
+                st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
+                ax = fig.axes[0]
+                ax.set_title(f'Hourly refreshed plot at (UTC) {UTCDateTime.now().strftime("%Y-%m-%d %H:%M:%S")}')
+                fig.savefig(fnout, dpi=150., bbox_inches='tight')
+            plt.close(fig)
+
     def write_html_table(self, default_color='#e6e6e6'):
-        fnout = self.outpath_html
+        fnout = pjoin(self.outpath_html, 'survBot_out.html')
         if not fnout:
             return
         try:
@@ -259,7 +298,8 @@ class SurveillanceBot(object):
 
                 # Write all cells
                 for st_id in self.station_list:
-                    col_items = [dict(text=st_id.rstrip('.'), color=default_color)]
+                    fig_name = self.get_fig_path_rel(st_id)
+                    col_items = [dict(text=st_id.rstrip('.'), color=default_color, image_src=fig_name)]
                     for check_key in self.keys:
                         status_dict, detailed_dict = self.analysis_results.get(st_id)
                         status = status_dict.get(check_key)

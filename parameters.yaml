@@ -12,6 +12,7 @@ verbosity: 0
 reread_parameters: True    # reread parameters file (change parameters on runtime, not for itself/GUI refresh/datapath)
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
 dt_thresh: [300, 1800]     # threshold (s) for timing delay colourisation (yellow/red)
+html_figures: True         # Create html figure directory and links
 
 POWBOX:
   pb_ok: 1  # Voltage for PowBox OK

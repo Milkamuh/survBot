@@ -42,7 +42,10 @@ def write_html_row(fobj, items, html_key='td'):
         color = item.get('color')
         # check for black background of headers (shouldnt happen anymore)
         color = '#e6e6e6' if color == '#000000' else color
-        fobj.write(2 * default_space + f'<{html_key} bgcolor="{color}" title="{tooltip}">' + text + f'</{html_key}>\n')
+        image_src = item.get('image_src')
+        image_str = f'<a href="{image_src}">' if image_src else ''
+        fobj.write(2 * default_space + f'<{html_key} bgcolor="{color}" title="{tooltip}"> {image_str}'
+                   + text + f'</{html_key}>\n')
     fobj.write(default_space + '</tr>\n')
 
 def get_print_title_str(parameters):
