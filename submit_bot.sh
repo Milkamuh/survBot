@@ -6,6 +6,7 @@ ulimit -s 8192
 #$ -cwd
 #$ -pe smp 1
 #$ -N survBot_bg
+#$ -l os=*stretch
 
 source /opt/anaconda3/etc/profile.d/conda.sh
 conda activate py37
@@ -15,4 +16,4 @@ export MKL_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 export OMP_NUM_THREADS=1
 
-python survBot.py -html '/home/marcel/public_html/'
+python survBot.py -html '/data/www/~marcel/'

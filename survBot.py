@@ -57,6 +57,7 @@ class SurveillanceBot(object):
         self.update_parameters()
         self.starttime = UTCDateTime()
         self.plot_hour = self.starttime.hour
+        self.current_day = self.starttime.julday
         self.outpath_html = outpath_html
         self.filenames = []
         self.filenames_read = []
@@ -120,8 +121,24 @@ class SurveillanceBot(object):
                         self.filenames += list(self.cl._get_filenames(network, station, location, channel,
                                                                       starttime=t1, endtime=time_now))
 
-    def read_data(self):
+    def read_data(self, re_read_at_hour=1, daily_overlap=2):
+        '''
+        read data method reads new data into self.stream
+
+        :param re_read_at_hour: update archive at specified hour each day (hours up to 24)
+        :param daily_overlap: re-read data of previous day until specified hour (hours up to 24)
+        '''
         self.data = {}
+
+        # re-read all data every new day
+        curr_time = UTCDateTime()
+        current_day = curr_time.julday
+        current_hour = curr_time.hour
+        yesterday = (curr_time - 24. * 3600.).julday
+        if re_read_at_hour is not False and current_day != self.current_day and current_hour == re_read_at_hour:
+            self.filenames_read = []
+            self.dataStream = Stream()
+            self.current_day = current_day
 
         # add all data to current stream
         for filename in self.filenames:
@@ -129,9 +146,10 @@ class SurveillanceBot(object):
                 continue
             try:
                 st_new = read(filename)
-                julday = UTCDateTime().julday
-                # add file to read filenames to prevent re-reading in case it is not the current dayfile
-                if not filename.endswith(str(julday)):
+                # add file to read filenames to prevent re-reading in case it is not the current day (or end of
+                # previous day)
+                if not filename.endswith(f'{current_day:03}') and not (
+                        filename.endswith(f'{yesterday:03}') and current_hour <= daily_overlap):
                     self.filenames_read.append(filename)
             except Exception as e:
                 print(f'Could not read file {filename}:', e)
@@ -389,8 +407,7 @@ class StationQC(object):
 
     def status_ok(self, key, message=None, status_message='OK'):
         self.status_dict[key] = status_message
-        if message:
-            self.detailed_status_dict[key] = message
+        self.detailed_status_dict[key] = message
 
     def warn(self, key, detailed_message, status_message='WARN'):
         # update detailed status if already existing
@@ -544,13 +561,15 @@ class StationQC(object):
         keys = ['230V', '12V']
         st = self.stream.select(channel=channel)
         trace = self.get_trace(st, keys)
-        if not trace: return
+        if not trace:
+            return
+
         voltage = trace.data * 1e-6
         if self.verbosity > 1:
             self.print(40 * '-')
             self.print('Performing PowBox 12V/230V check (EX2)', flush=False)
-        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, channel=channel,
-                                                                   warn_keys=keys)
+        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, channel=channel)
+
         if voltage_check:
             for key in keys:
                 self.status_ok(key)
@@ -565,14 +584,15 @@ class StationQC(object):
         pb_thresh = self.parameters.get('THRESHOLDS').get('pb_1v')
         st = self.stream.select(channel=channel)
         trace = self.get_trace(st, keys)
-        if not trace: return
+        if not trace:
+            return
 
         voltage = trace.data * 1e-6
         if self.verbosity > 1:
             self.print(40 * '-')
             self.print('Performing PowBox Router/Charger check (EX3)', flush=False)
-        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, channel=channel,
-                                                                   warn_keys=keys)
+        voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, channel=channel)
+
         if voltage_check:
             for key in keys:
                 self.status_ok(key)
@@ -617,7 +637,7 @@ class StationQC(object):
             return
         return trace
 
-    def pb_voltage_ok(self, trace, voltage, pb_dict_key, warn_keys, channel=None):
+    def pb_voltage_ok(self, trace, voltage, pb_dict_key, channel=None):
         """
         Checks if voltage level is ok everywhere and returns True. If it is not okay it returns a dictionary
         with each voltage value associated to the different steps specified in POWBOX > pb_steps. Also raises
@@ -634,19 +654,9 @@ class StationQC(object):
         # check if voltage is over or under OK-level (1V), if not return True
         over = np.where(voltage > pb_ok + pb_thresh)[0]
         under = np.where(voltage < pb_ok - pb_thresh)[0]
+
         if len(over) == 0 and len(under) == 0:
             return True, {}, last_voltage
-
-        # Warn in case of voltage under OK-level (1V)
-        if len(under) > 0:
-            # try calculate number of occurences from gaps between indices
-            n_occurrences = len(np.where(np.diff(under) > 1)[0]) + 1
-            self.warn(key='other',
-                      detailed_message=f'Trace {trace.get_id()}: '
-                              f'Voltage below {pb_ok}V in {len(under)} samples, {n_occurrences} time(s). '
-                              f'Mean voltage: {np.mean(voltage):.2}'
-                                       + self.get_last_occurrence_timestring(trace, under),
-                      status_message='under 1V ({})'.format(n_occurrences))
 
         # Get voltage levels for classification
         voltage_dict = {}
@@ -658,13 +668,25 @@ class StationQC(object):
             voltage_dict[volt] = indices
             classified_indices = np.append(classified_indices, indices)
 
+        # Warn in case of voltage under OK-level (1V)
+        if len(under) > 0:
+            # try calculate number of occurences from gaps between indices
+            n_occurrences = len(np.where(np.diff(under) > 1)[0]) + 1
+            voltage_dict[-1] = under
+            self.warn(key='other',
+                      detailed_message=f'Trace {trace.get_id()}: '
+                              f'Voltage below {pb_ok}V in {len(under)} samples, {n_occurrences} time(s). '
+                              f'Mean voltage: {np.mean(voltage):.2}'
+                                       + self.get_last_occurrence_timestring(trace, under),
+                      status_message='under 1V ({})'.format(n_occurrences))
+
         # classify last voltage values
         for volt in voltage_levels:
             if (last_voltage < volt + pb_thresh) and (last_voltage > volt - pb_thresh):
                 last_val = volt
                 break
         else:
-            last_val = np.nan
+            last_val = round(last_voltage, 2)
 
         # in case not all voltage values could be classified
         if not len(classified_indices) == len(voltage):

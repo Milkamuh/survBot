@@ -7,7 +7,7 @@ channels: ['EX1', 'EX2', 'EX3', 'VEI']    # Specify SOH channels, currently supp
 stations_blacklist: ['TEST', 'EREA']
 networks_blacklist: []
 interval: 60               # Perform checks every x seconds
-timespan: 7                # Check data of the recent x days
+timespan: 3                # Check data of the recent x days
 verbosity: 0
 reread_parameters: True    # reread parameters file (change parameters on runtime, not for itself/GUI refresh/datapath)
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
@@ -17,6 +17,7 @@ html_figures: True         # Create html figure directory and links
 POWBOX:
   pb_ok: 1  # Voltage for PowBox OK
   pb_SOH2: # PowBox channel 2 voltage translations
+    -1: {"230V": "PBox under 1V", "12V": "PBox under 1V"}
     1: {"230V": 'OK', "12V": "OK"}
     2: {"230V": "OFF", "12V": "OK"}
     3: {"230V": "OK", "12V": "overvoltage"}
@@ -24,6 +25,7 @@ POWBOX:
     4.5: {"230V": "OFF", "12V": "overvoltage"}
     5: {"230V": "OFF", "12V": "undervoltage"}
   pb_SOH3: # PowBox channel 3 voltage translations
+    -1: {"router": "PBox under 1V", "charger": "PBox under 1V"}
     1: {"router": "OK", "charger": "OK"}
     2: {"router": "OK", "charger": "0 < resets < 3"}
     2.5: {"router": "OK", "charger": "locked"}
