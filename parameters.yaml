@@ -15,7 +15,7 @@ dt_thresh: [300, 1800]     # threshold (s) for timing delay colourisation (yello
 html_figures: True         # Create html figure directory and links
 
 # add links to html table with specified key as column and value as relative link, interpretable string parameters:
-# nw (e.g. 1Y), st (e.g. GR01A), st_id (e.g. 1Y.GR01A)
+# nw (e.g. 1Y), st (e.g. GR01A), nwst_id (e.g. 1Y.GR01A)
 add_links: {}   # for example: {'slmon': '{nw}_{st}.html'}
 
 POWBOX:

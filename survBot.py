@@ -32,12 +32,12 @@ def read_yaml(file_path):
         return yaml.safe_load(f)
 
 
-def nsl_from_id(st_id):
-    network, station, location = st_id.split('.')
+def nsl_from_id(nwst_id):
+    network, station, location = nwst_id.split('.')
     return dict(network=network, station=station, location=location)
 
 
-def get_st_id(trace):
+def get_nwst_id(trace):
     stats = trace.stats
     return f'{stats.network}.{stats.station}.'  # {stats.location}'
 
@@ -105,8 +105,8 @@ class SurveillanceBot(object):
             if self.networks_blacklist and nw in self.networks_blacklist:
                 continue
             if (networks == ['*'] or nw in networks) and (stations == ['*'] or st in stations):
-                st_id = f'{nw}.{st}.'
-                self.station_list.append(st_id)
+                nwst_id = f'{nw}.{st}.'
+                self.station_list.append(nwst_id)
 
     def get_filenames(self):
         self.filenames = []
@@ -161,10 +161,10 @@ class SurveillanceBot(object):
 
         # organise data in dictionary with key for each station
         for trace in self.dataStream:
-            st_id = get_st_id(trace)
-            if not st_id in self.data.keys():
-                self.data[st_id] = Stream()
-            self.data[st_id].append(trace)
+            nwst_id = get_nwst_id(trace)
+            if not nwst_id in self.data.keys():
+                self.data[nwst_id] = Stream()
+            self.data[nwst_id].append(trace)
 
     def execute_qc(self):
         if self.reread_parameters:
@@ -175,25 +175,25 @@ class SurveillanceBot(object):
 
         self.analysis_print_list = []
         self.analysis_results = {}
-        for st_id in sorted(self.station_list):
-            stream = self.data.get(st_id)
+        for nwst_id in sorted(self.station_list):
+            stream = self.data.get(nwst_id)
             if stream:
-                nsl = nsl_from_id(st_id)
+                nsl = nsl_from_id(nwst_id)
                 station_qc = StationQC(stream, nsl, self.parameters, self.keys, qc_starttime, self.verbosity,
                                        print_func=self.print)
                 analysis_print_result = station_qc.return_print_analysis()
                 station_dict, warn_dict = station_qc.return_analysis()
             else:
-                analysis_print_result = self.get_no_data_station(st_id, to_print=True)
-                station_dict, warn_dict = self.get_no_data_station(st_id)
+                analysis_print_result = self.get_no_data_station(nwst_id, to_print=True)
+                station_dict, warn_dict = self.get_no_data_station(nwst_id)
             self.analysis_print_list.append(analysis_print_result)
-            self.analysis_results[st_id] = (station_dict, warn_dict)
+            self.analysis_results[nwst_id] = (station_dict, warn_dict)
 
         self.update_status_message()
         return 'ok'
 
-    def get_no_data_station(self, st_id, no_data='-', to_print=False):
-        delay = self.get_station_delay(st_id)
+    def get_no_data_station(self, nwst_id, no_data='-', to_print=False):
+        delay = self.get_station_delay(nwst_id)
         if not to_print:
             status_dict = {}
             warn_dict = {}
@@ -206,16 +206,16 @@ class SurveillanceBot(object):
                     warn_dict[key] = 'No data'
             return status_dict, warn_dict
         else:
-            items = [st_id.rstrip('.')] + [fancy_timestr(timedelta(seconds=int(delay)))]
+            items = [nwst_id.rstrip('.')] + [fancy_timestr(timedelta(seconds=int(delay)))]
             for _ in range(len(self.keys) - 1):
                 items.append(no_data)
             return items
 
-    def get_station_delay(self, st_id):
+    def get_station_delay(self, nwst_id):
         """ try to get station delay from SDS archive using client"""
         locations = ['', '0', '00']
         channels = ['HHZ', 'HHE', 'HHN', 'VEI', 'EX1', 'EX2', 'EX3']
-        network, station = st_id.split('.')[:2]
+        network, station = nwst_id.split('.')[:2]
 
         times = []
         for channel in channels:
@@ -278,11 +278,11 @@ class SurveillanceBot(object):
             self.plot_hour += 1
         return True
 
-    def get_fig_path_abs(self, st_id):
-        return pjoin(self.outpath_html, self.get_fig_path_rel(st_id))
+    def get_fig_path_abs(self, nwst_id):
+        return pjoin(self.outpath_html, self.get_fig_path_rel(nwst_id))
 
-    def get_fig_path_rel(self, st_id, fig_format='png'):
-        return os.path.join(self.html_fig_dir, f'{st_id.rstrip(".")}.{fig_format}')
+    def get_fig_path_rel(self, nwst_id, fig_format='png'):
+        return os.path.join(self.html_fig_dir, f'{nwst_id.rstrip(".")}.{fig_format}')
 
     def check_fig_dir(self):
         fdir = pjoin(self.outpath_html, self.html_fig_dir)
@@ -299,10 +299,10 @@ class SurveillanceBot(object):
             return
         self.check_fig_dir()
 
-        for st_id in self.station_list:
+        for nwst_id in self.station_list:
             fig = plt.figure(figsize=(16, 9))
-            fnout = self.get_fig_path_abs(st_id)
-            st = self.data.get(st_id)
+            fnout = self.get_fig_path_abs(nwst_id)
+            st = self.data.get(nwst_id)
             if st:
                 st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
                 ax = fig.axes[0]
@@ -333,12 +333,12 @@ class SurveillanceBot(object):
                 write_html_row(outfile, header_items, html_key='th')
 
                 # Write all cells
-                for st_id in self.station_list:
-                    fig_name = self.get_fig_path_rel(st_id)
-                    col_items = [dict(text=st_id.rstrip('.'), color=default_color, hyperlink=fig_name)]
+                for nwst_id in self.station_list:
+                    fig_name = self.get_fig_path_rel(nwst_id)
+                    col_items = [dict(text=nwst_id.rstrip('.'), color=default_color, hyperlink=fig_name)]
                     for check_key in header:
                         if check_key in self.keys:
-                            status_dict, detailed_dict = self.analysis_results.get(st_id)
+                            status_dict, detailed_dict = self.analysis_results.get(nwst_id)
                             status = status_dict.get(check_key)
 
                             # get background color
@@ -358,8 +358,8 @@ class SurveillanceBot(object):
                             value = self.add_links.get(check_key)
                             if not value:
                                 continue
-                            nw, st = st_id.split('.')[:2]
-                            hyperlink_dict = dict(nw=nw, st=st, st_id=st_id)
+                            nw, st = nwst_id.split('.')[:2]
+                            hyperlink_dict = dict(nw=nw, st=st, nwst_id=nwst_id)
                             link = value.format(**hyperlink_dict)
                             item = dict(text='link', tooltip=link, hyperlink=link, color=default_color)
                         col_items.append(item)

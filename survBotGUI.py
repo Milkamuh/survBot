@@ -130,10 +130,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.table.setRowCount(len(station_list))
         self.table.setHorizontalHeaderLabels(keys)
 
-        for index, st_id in enumerate(station_list):
+        for index, nwst_id in enumerate(station_list):
             item = QtWidgets.QTableWidgetItem()
-            item.setText(str(st_id.rstrip('.')))
-            item.setData(QtCore.Qt.UserRole, st_id)
+            item.setText(str(nwst_id.rstrip('.')))
+            item.setData(QtCore.Qt.UserRole, nwst_id)
             self.table.setVerticalHeaderItem(index, item)
 
         self.main_layout.addWidget(self.table)
@@ -180,38 +180,38 @@ class MainWindow(QtWidgets.QMainWindow):
         header_item = self.table.verticalHeaderItem(row_ind)
         if not header_item:
            return
-        st_id = header_item.data(QtCore.Qt.UserRole)
+        nwst_id = header_item.data(QtCore.Qt.UserRole)
 
         context_menu = QtWidgets.QMenu()
         read_sms = context_menu.addAction('Get last SMS')
         send_sms = context_menu.addAction('Send SMS')
         action = context_menu.exec_(self.mapToGlobal(self.last_mouse_loc))
         if action == read_sms:
-           self.read_sms(st_id)
+           self.read_sms(nwst_id)
         elif action == send_sms:
-           self.send_sms(st_id)
+           self.send_sms(nwst_id)
 
-    def read_sms(self, st_id):
+    def read_sms(self, nwst_id):
         """ Read recent SMS over rest_api using whereversim portal """
-        station = st_id.split('.')[1]
+        station = nwst_id.split('.')[1]
         iccid = get_station_iccid(station)
         if not iccid:
-            print('Could not find iccid for station', st_id)
+            print('Could not find iccid for station', nwst_id)
             return
         sms_widget = ReadSMSWidget(parent=self, iccid=iccid)
-        sms_widget.setWindowTitle(f'Recent SMS of station: {st_id}')
+        sms_widget.setWindowTitle(f'Recent SMS of station: {nwst_id}')
         if sms_widget.data:
             sms_widget.show()
         else:
             self.notification('No recent messages found.')
 
-    def send_sms(self, st_id):
+    def send_sms(self, nwst_id):
         """ Send SMS over rest_api using whereversim portal """
-        station = st_id.split('.')[1]
+        station = nwst_id.split('.')[1]
         iccid = get_station_iccid(station)
 
         sms_widget = SendSMSWidget(parent=self, iccid=iccid)
-        sms_widget.setWindowTitle(f'Send SMS to station: {st_id}')
+        sms_widget.setWindowTitle(f'Send SMS to station: {nwst_id}')
         sms_widget.show()
 
     def set_clear_on_refresh(self):
@@ -230,8 +230,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.fill_status_bar()
 
         for col_ind, check_key in enumerate(self.survBot.keys):
-            for row_ind, st_id in enumerate(self.survBot.station_list):
-                status_dict, detailed_dict = self.survBot.analysis_results.get(st_id)
+            for row_ind, nwst_id in enumerate(self.survBot.station_list):
+                status_dict, detailed_dict = self.survBot.analysis_results.get(nwst_id)
                 status = status_dict.get(check_key)
                 detailed_message = detailed_dict.get(check_key)
 
@@ -255,7 +255,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 item = QtWidgets.QTableWidgetItem()
                 item.setText(str(status))
                 item.setTextAlignment(QtCore.Qt.AlignCenter)
-                item.setData(QtCore.Qt.UserRole, (st_id, check_key))
+                item.setData(QtCore.Qt.UserRole, (nwst_id, check_key))
 
                 # if text changed (known from above) set highlight color/font else (new init) set to default
                 cur_item = self.table.item(row_ind, col_ind)
@@ -310,11 +310,11 @@ class MainWindow(QtWidgets.QMainWindow):
             vheader.setSectionResizeMode(index, QtWidgets.QHeaderView.Stretch)
 
     def plot_stream(self, item):
-        st_id, check = item.data(QtCore.Qt.UserRole)
-        st = self.survBot.data.get(st_id)
+        nwst_id, check = item.data(QtCore.Qt.UserRole)
+        st = self.survBot.data.get(nwst_id)
         if st:
             self.plot_widget = PlotWidget(self)
-            self.plot_widget.setWindowTitle(st_id)
+            self.plot_widget.setWindowTitle(nwst_id)
             st.plot(equal_scale=False, method='full', block=False, fig=self.plot_widget.canvas.fig)
             self.plot_widget.show()
 
