@@ -14,6 +14,10 @@ track_changes: True        # tracks all changes since GUI startup by text highli
 dt_thresh: [300, 1800]     # threshold (s) for timing delay colourisation (yellow/red)
 html_figures: True         # Create html figure directory and links
 
+# add links to html table with specified key as column and value as relative link, interpretable string parameters:
+# nw (e.g. 1Y), st (e.g. GR01A), st_id (e.g. 1Y.GR01A)
+add_links: {}   # for example: {'slmon': '{nw}_{st}.html'}
+
 POWBOX:
   pb_ok: 1  # Voltage for PowBox OK
   pb_SOH2: # PowBox channel 2 voltage translations

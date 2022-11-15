@@ -82,6 +82,8 @@ class SurveillanceBot(object):
         self.networks_blacklist = self.parameters.get('networks_blacklist')
         self.refresh_period = self.parameters.get('interval')
         self.transform_parameters()
+        add_links = self.parameters.get('add_links')
+        self.add_links = add_links if add_links else {}
 
     def transform_parameters(self):
         for key in ['networks', 'stations', 'locations', 'channels']:
@@ -320,8 +322,12 @@ class SurveillanceBot(object):
                 init_html_table(outfile)
 
                 # First write header items
+                header = self.keys.copy()
+                # add columns for additional links
+                for key in self.add_links:
+                    header.insert(-1, key)
                 header_items = [dict(text='Station', color=default_color)]
-                for check_key in self.keys:
+                for check_key in header:
                     item = dict(text=check_key, color=default_color)
                     header_items.append(item)
                 write_html_row(outfile, header_items, html_key='th')
@@ -329,25 +335,35 @@ class SurveillanceBot(object):
                 # Write all cells
                 for st_id in self.station_list:
                     fig_name = self.get_fig_path_rel(st_id)
-                    col_items = [dict(text=st_id.rstrip('.'), color=default_color, image_src=fig_name)]
-                    for check_key in self.keys:
-                        status_dict, detailed_dict = self.analysis_results.get(st_id)
-                        status = status_dict.get(check_key)
+                    col_items = [dict(text=st_id.rstrip('.'), color=default_color, hyperlink=fig_name)]
+                    for check_key in header:
+                        if check_key in self.keys:
+                            status_dict, detailed_dict = self.analysis_results.get(st_id)
+                            status = status_dict.get(check_key)
 
-                        # get background color
-                        dt_thresh = [timedelta(seconds=sec) for sec in self.dt_thresh]
-                        bg_color = get_bg_color(check_key, status, dt_thresh, hex=True)
-                        if not bg_color:
-                            bg_color = default_color
+                            # get background color
+                            dt_thresh = [timedelta(seconds=sec) for sec in self.dt_thresh]
+                            bg_color = get_bg_color(check_key, status, dt_thresh, hex=True)
+                            if not bg_color:
+                                bg_color = default_color
 
-                        # add degree sign for temp
-                        if check_key == 'temp':
-                            if not type(status) in [str]:
-                                status = str(status) + deg_str
+                            # add degree sign for temp
+                            if check_key == 'temp':
+                                if not type(status) in [str]:
+                                    status = str(status) + deg_str
 
-                        item = dict(text=str(status), tooltip=str(detailed_dict.get(check_key)),
-                                    color=bg_color)
+                            item = dict(text=str(status), tooltip=str(detailed_dict.get(check_key)),
+                                        color=bg_color)
+                        elif check_key in self.add_links:
+                            value = self.add_links.get(check_key)
+                            if not value:
+                                continue
+                            nw, st = st_id.split('.')[:2]
+                            hyperlink_dict = dict(nw=nw, st=st, st_id=st_id)
+                            link = value.format(**hyperlink_dict)
+                            item = dict(text='link', tooltip=link, hyperlink=link, color=default_color)
                         col_items.append(item)
+
                     write_html_row(outfile, col_items)
 
                 finish_html_table(outfile)
