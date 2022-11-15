@@ -231,18 +231,18 @@ class MainWindow(QtWidgets.QMainWindow):
 
         for col_ind, check_key in enumerate(self.survBot.keys):
             for row_ind, nwst_id in enumerate(self.survBot.station_list):
-                status_dict, detailed_dict = self.survBot.analysis_results.get(nwst_id)
+                status_dict = self.survBot.analysis_results.get(nwst_id)
                 status = status_dict.get(check_key)
-                detailed_message = detailed_dict.get(check_key)
+                message, detailed_message = status.get_status_str()
 
                 dt_thresh = [timedelta(seconds=sec) for sec in self.dt_thresh]
                 bg_color = get_bg_color(check_key, status, dt_thresh)
                 if check_key == 'temp':
-                    if not type(status) in [str]:
-                        status = str(status) + deg_str
+                    if not type(message) in [str]:
+                        message = str(message) + deg_str
 
                 # Continue if nothing changed
-                text = str(status)
+                text = str(message)
                 cur_item = self.table.item(row_ind, col_ind)
                 if cur_item and text == cur_item.text():
                     if not self.parameters.get('track_changes') or self.clear_on_refresh:
@@ -253,7 +253,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
                 # Create new data item
                 item = QtWidgets.QTableWidgetItem()
-                item.setText(str(status))
+                item.setText(str(message))
                 item.setTextAlignment(QtCore.Qt.AlignCenter)
                 item.setData(QtCore.Qt.UserRole, (nwst_id, check_key))
 

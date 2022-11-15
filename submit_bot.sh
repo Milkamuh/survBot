@@ -6,7 +6,7 @@ ulimit -s 8192
 #$ -cwd
 #$ -pe smp 1
 #$ -N survBot_bg
-#$ -l os=*stretch
+##$ -l os=*stretch
 
 source /opt/anaconda3/etc/profile.d/conda.sh
 conda activate py37

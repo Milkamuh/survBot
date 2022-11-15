@@ -182,12 +182,12 @@ class SurveillanceBot(object):
                 station_qc = StationQC(stream, nsl, self.parameters, self.keys, qc_starttime, self.verbosity,
                                        print_func=self.print)
                 analysis_print_result = station_qc.return_print_analysis()
-                station_dict, warn_dict = station_qc.return_analysis()
+                station_dict = station_qc.return_analysis()
             else:
                 analysis_print_result = self.get_no_data_station(nwst_id, to_print=True)
-                station_dict, warn_dict = self.get_no_data_station(nwst_id)
+                station_dict = self.get_no_data_station(nwst_id)
             self.analysis_print_list.append(analysis_print_result)
-            self.analysis_results[nwst_id] = (station_dict, warn_dict)
+            self.analysis_results[nwst_id] = station_dict
 
         self.update_status_message()
         return 'ok'
@@ -196,15 +196,12 @@ class SurveillanceBot(object):
         delay = self.get_station_delay(nwst_id)
         if not to_print:
             status_dict = {}
-            warn_dict = {}
             for key in self.keys:
                 if key == 'last active':
-                    status_dict[key] = timedelta(seconds=int(delay))
-                    warn_dict[key] = 'No data within set timespan'
+                    status_dict[key] = Status(message=timedelta(seconds=int(delay)), detailed_messages=['No data'])
                 else:
-                    status_dict[key] = no_data
-                    warn_dict[key] = 'No data'
-            return status_dict, warn_dict
+                    status_dict[key] = Status(message=no_data, detailed_messages=['No data'])
+            return status_dict
         else:
             items = [nwst_id.rstrip('.')] + [fancy_timestr(timedelta(seconds=int(delay)))]
             for _ in range(len(self.keys) - 1):
@@ -338,8 +335,9 @@ class SurveillanceBot(object):
                     col_items = [dict(text=nwst_id.rstrip('.'), color=default_color, hyperlink=fig_name)]
                     for check_key in header:
                         if check_key in self.keys:
-                            status_dict, detailed_dict = self.analysis_results.get(nwst_id)
+                            status_dict = self.analysis_results.get(nwst_id)
                             status = status_dict.get(check_key)
+                            message, detailed_message = status.get_status_str()
 
                             # get background color
                             dt_thresh = [timedelta(seconds=sec) for sec in self.dt_thresh]
@@ -349,19 +347,19 @@ class SurveillanceBot(object):
 
                             # add degree sign for temp
                             if check_key == 'temp':
-                                if not type(status) in [str]:
-                                    status = str(status) + deg_str
+                                if not type(message) in [str]:
+                                    message = str(message) + deg_str
 
-                            item = dict(text=str(status), tooltip=str(detailed_dict.get(check_key)),
-                                        color=bg_color)
+                            item = dict(text=str(message), tooltip=str(detailed_message), color=bg_color)
                         elif check_key in self.add_links:
-                            value = self.add_links.get(check_key)
+                            value = self.add_links.get(check_key).get('URL')
+                            link_text = self.add_links.get(check_key).get('text')
                             if not value:
                                 continue
                             nw, st = nwst_id.split('.')[:2]
                             hyperlink_dict = dict(nw=nw, st=st, nwst_id=nwst_id)
                             link = value.format(**hyperlink_dict)
-                            item = dict(text='link', tooltip=link, hyperlink=link, color=default_color)
+                            item = dict(text=link_text, tooltip=link, hyperlink=link, color=default_color)
                         col_items.append(item)
 
                     write_html_row(outfile, col_items)
@@ -415,47 +413,94 @@ class StationQC(object):
         self.analysis_starttime = self.program_starttime - timespan
 
         self.keys = keys
-        self.detailed_status_dict = {key: None for key in self.keys}
-        self.status_dict = {key: '-' for key in self.keys}
+        self.status_dict = {key: Status() for key in self.keys}
         self.activity_check()
 
         self.analyse_channels()
 
-    def status_ok(self, key, message=None, status_message='OK'):
-        self.status_dict[key] = status_message
-        self.detailed_status_dict[key] = message
+    def status_ok(self, key, detailed_message="Everything OK", status_message='OK', overwrite=False):
+        current_status = self.status_dict.get(key)
+        # do not overwrite existing warnings or errors
+        if not overwrite and (current_status.is_warn or current_status.is_error):
+            return
+        self.status_dict[key] = StatusOK(message=status_message, detailed_messages=[detailed_message])
 
-    def warn(self, key, detailed_message, status_message='WARN'):
-        # update detailed status if already existing
-        current_message = self.detailed_status_dict.get(key)
-        current_message = '' if current_message in [None, '-'] else current_message + ' | '
-        self.detailed_status_dict[key] = current_message + detailed_message
+    def warn(self, key, detailed_message, last_occurrence=None, count=1):
+        if key == 'other':
+            self.status_other(detailed_message, last_occurrence, count)
 
-        # this is becoming a little bit too complicated (adding warnings to existing)
-        current_status_message = self.status_dict.get(key)
-        current_status_message = '' if current_status_message in [None, 'OK', '-'] else current_status_message + ' | '
-        self.status_dict[key] = current_status_message + status_message
+        new_warn = StatusWarn(count=count, show_count=self.parameters.get('warn_count'))
+
+        current_status = self.status_dict.get(key)
+
+        # change this to something more useful, SMS/EMAIL/PUSH
+        if self.verbosity:
+            self.print(f'{UTCDateTime()}: {detailed_message}', flush=False)
+
+        # if error, do not overwrite with warning
+        if current_status.is_error:
+            return
+
+        if current_status.is_warn:
+            current_status.count += count
+        else:
+            current_status = new_warn
+
+        self._update_status(key, current_status, detailed_message, last_occurrence)
+
+        # warnings.warn(message)
+
+        # # update detailed status if already existing
+        # current_message = self.detailed_status_dict.get(key)
+        # current_message = '' if current_message in [None, '-'] else current_message + ' | '
+        # self.detailed_status_dict[key] = current_message + detailed_message
+        #
+        # # this is becoming a little bit too complicated (adding warnings to existing)
+        # current_status_message = self.status_dict.get(key)
+        # current_status_message = '' if current_status_message in [None, 'OK', '-'] else current_status_message + ' | '
+        # self.status_dict[key] = current_status_message + status_message
+
+    def error(self, key, detailed_message, last_occurrence=None, count=1):
+        new_error = StatusError(count=count, show_count=self.parameters.get('warn_count'))
+        current_status = self.status_dict.get(key)
+        if current_status.is_error:
+            current_status.count += count
+        else:
+            current_status = new_error
+
+        self._update_status(key, current_status, detailed_message, last_occurrence)
 
         # change this to something more useful, SMS/EMAIL/PUSH
         if self.verbosity:
             self.print(f'{UTCDateTime()}: {detailed_message}', flush=False)
         # warnings.warn(message)
+        
+    def status_other(self, detailed_message, status_message, last_occurrence=None, count=1):
+        key = 'other'
+        new_status = StatusOther(count=count, messages=[status_message])
+        current_status = self.status_dict.get(key)
+        if current_status.is_other:
+            current_status.count += count
+            current_status.messages.append(status_message)
+        else:
+            current_status = new_status
 
-    def error(self, key, message):
-        self.detailed_status_dict[key] = message
-        self.status_dict[key] = 'FAIL'
-        # change this to something more useful, SMS/EMAIL/PUSH
-        if self.verbosity:
-            self.print(f'{UTCDateTime()}: {message}', flush=False)
-        # warnings.warn(message)
+        self._update_status(key, current_status, detailed_message, last_occurrence)
+
+    def _update_status(self, key, current_status, detailed_message, last_occurrence):
+        current_status.detailed_messages.append(detailed_message)
+        current_status.last_occurrence = last_occurrence
+
+        self.status_dict[key] = current_status
 
     def activity_check(self):
         self.last_active = self.last_activity()
         if not self.last_active:
-            message = 'FAIL'
+            status = StatusError()
         else:
             message = timedelta(seconds=int(self.program_starttime - self.last_active))
-        self.status_dict['last active'] = message
+            status = Status(message=message)
+        self.status_dict['last active'] = status
 
     def last_activity(self):
         if not self.stream:
@@ -479,25 +524,29 @@ class StationQC(object):
     def return_print_analysis(self):
         items = [f'{self.network}.{self.station}']
         for key in self.keys:
-            item = self.status_dict[key]
+            status = self.status_dict[key]
+            message = status.message
             if key == 'last active':
-                items.append(fancy_timestr(item))
+                items.append(fancy_timestr(message))
             elif key == 'temp':
-                items.append(str(item) + deg_str)
+                items.append(str(message) + deg_str)
             else:
-                items.append(str(item))
+                items.append(str(message))
         return items
 
     def return_analysis(self):
-        return self.status_dict, self.detailed_status_dict
+        return self.status_dict
 
     def get_last_occurrence_timestring(self, trace, indices):
         """ returns a nicely formatted string of the timedelta since program starttime and occurrence and abs time"""
-        last_occur = self.get_time(trace, indices[-1])
+        last_occur = self.get_last_occurrence(trace, indices)
         if not last_occur:
             return ''
         last_occur_dt = timedelta(seconds=int(self.program_starttime - last_occur))
         return f', Last occurrence: {last_occur_dt} ({last_occur.strftime("%Y-%m-%d %H:%M:%S")})'
+
+    def get_last_occurrence(self, trace, indices):
+        return self.get_time(trace, indices[-1])
 
     def voltage_analysis(self, channel='VEI'):
         """ Analyse voltage channel for over/undervoltage """
@@ -517,7 +566,7 @@ class StationQC(object):
         undervolt = np.where(voltage < low_volt)[0]
 
         if len(overvolt) == 0 and len(undervolt) == 0:
-            self.status_ok(key, message=f'U={(voltage[-1])}V')
+            self.status_ok(key, detailed_message=f'U={(voltage[-1])}V')
             return
 
         n_overvolt = 0
@@ -527,14 +576,19 @@ class StationQC(object):
         if len(overvolt) > 0:
             # try calculate number of voltage peaks from gaps between indices
             n_overvolt = len(np.where(np.diff(overvolt) > 1)[0]) + 1
-            warn_message += f' {n_overvolt}x Voltage over {high_volt}V' \
-                            + self.get_last_occurrence_timestring(trace, overvolt)
+            detailed_message = warn_message + f' {n_overvolt}x Voltage over {high_volt}V' \
+                               + self.get_last_occurrence_timestring(trace, overvolt)
+            self.warn(key, detailed_message=detailed_message, count=n_overvolt,
+                      last_occurrence=self.get_last_occurrence(trace, overvolt))
+
+
         if len(undervolt) > 0:
             # try calculate number of voltage peaks from gaps between indices
             n_undervolt = len(np.where(np.diff(undervolt) > 1)[0]) + 1
-            warn_message += f' {n_undervolt}x Voltage under {low_volt}V ' \
-                            + self.get_last_occurrence_timestring(trace, undervolt)
-        self.warn(key, detailed_message=warn_message, status_message='WARN ({})'.format(n_overvolt + n_undervolt))
+            detailed_message = warn_message + f' {n_undervolt}x Voltage under {low_volt}V '\
+                               + self.get_last_occurrence_timestring(trace, undervolt)
+            self.warn(key, detailed_message=detailed_message, count=n_undervolt,
+                      last_occurrence=self.get_last_occurrence(trace, undervolt))
 
     def pb_temp_analysis(self, channel='EX1'):
         """ Analyse PowBox temperature output. """
@@ -563,14 +617,14 @@ class StationQC(object):
         t_check = np.where(temp > max_temp)[0]
         if len(t_check) > 0:
             self.warn(key=key,
-                      status_message=cur_temp,
                       detailed_message=f'Trace {trace.get_id()}: '
-                              f'Temperature over {max_temp}\N{DEGREE SIGN} at {trace.get_id()}!'
-                                       + self.get_last_occurrence_timestring(trace, t_check))
+                                       f'Temperature over {max_temp}\N{DEGREE SIGN} at {trace.get_id()}!'
+                                       + self.get_last_occurrence_timestring(trace, t_check),
+                      last_occurrence=self.get_last_occurrence(trace, t_check))
         else:
             self.status_ok(key,
                            status_message=cur_temp,
-                           message=f'Average temperature of last {dt_t_str}: {av_temp_str}')
+                           detailed_message=f'Average temperature of last {dt_t_str}: {av_temp_str}')
 
     def pb_power_analysis(self, channel='EX2', pb_dict_key='pb_SOH2'):
         """ Analyse EX2 channel of PowBox """
@@ -620,22 +674,28 @@ class StationQC(object):
     def in_depth_voltage_check(self, trace, voltage_dict, soh_params, last_val):
         """ Associate values in voltage_dict to error messages specified in SOH_params and warn."""
         for volt_lvl, ind_array in voltage_dict.items():
-            if volt_lvl == 1: continue  # No need to do anything here
+            if volt_lvl == 1:
+                continue  # No need to do anything here
             if len(ind_array) > 0:
+                # get result from parameter dictionary for voltage level
                 result = soh_params.get(volt_lvl)
                 for key, message in result.items():
+                    # if result is OK, continue with next voltage level
                     if message == 'OK':
                         self.status_ok(key)
                         continue
-                    # try calculate number of voltage peaks from gaps between indices
-                    n_occurrences = len(np.where(np.diff(ind_array) > 1)[0]) + 1
-                    self.warn(key=key,
-                              detailed_message=f'Trace {trace.get_id()}: '
-                                      f'Found {n_occurrences} occurrence(s) of {volt_lvl}V: {key}: {message}'
-                                               + self.get_last_occurrence_timestring(trace, ind_array),
-                              status_message='WARN ({})'.format(n_occurrences))
-                    if last_val != 1:
-                        self.error(key, message=f'Last PowBox voltage state {last_val}V: {message}')
+                    if volt_lvl > 1:
+                        # try calculate number of voltage peaks from gaps between indices
+                        n_occurrences = len(np.where(np.diff(ind_array) > 1)[0]) + 1
+                        self.warn(key=key,
+                                  detailed_message=f'Trace {trace.get_id()}: '
+                                          f'Found {n_occurrences} occurrence(s) of {volt_lvl}V: {key}: {message}'
+                                                   + self.get_last_occurrence_timestring(trace, ind_array),
+                                  count=n_occurrences,
+                                  last_occurrence=self.get_last_occurrence(trace, ind_array))
+                    # if last_val == current voltage (which is not 1) -> FAIL or last_val < 1: PBox no data
+                    if volt_lvl == last_val or (volt_lvl == -1 and last_val < 1):
+                        self.error(key, detailed_message=f'Last PowBox voltage state {last_val}V: {message}')
 
     def get_trace(self, stream, keys):
         if not type(keys) == list:
@@ -689,12 +749,11 @@ class StationQC(object):
             # try calculate number of occurences from gaps between indices
             n_occurrences = len(np.where(np.diff(under) > 1)[0]) + 1
             voltage_dict[-1] = under
-            self.warn(key='other',
-                      detailed_message=f'Trace {trace.get_id()}: '
+            self.status_other(detailed_message=f'Trace {trace.get_id()}: '
                               f'Voltage below {pb_ok}V in {len(under)} samples, {n_occurrences} time(s). '
                               f'Mean voltage: {np.mean(voltage):.2}'
                                        + self.get_last_occurrence_timestring(trace, under),
-                      status_message='under 1V ({})'.format(n_occurrences))
+                              status_message='under 1V ({})'.format(n_occurrences))
 
         # classify last voltage values
         for volt in voltage_levels:
@@ -711,16 +770,103 @@ class StationQC(object):
             n_unclassified = len(unclassified_indices)
             max_uncl = self.parameters.get('THRESHOLDS').get('unclassified')
             if max_uncl and n_unclassified > max_uncl:
-                self.warn(key='other', detailed_message=f'Trace {trace.get_id()}: '
+                self.status_other(detailed_message=f'Trace {trace.get_id()}: '
                                                f'{n_unclassified}/{len(all_indices)} '
                                                f'unclassified voltage values in channel {trace.get_id()}',
-                          status_message=f'{channel}: {n_unclassified} uncl.')
+                                  status_message=f'{channel}: {n_unclassified} uncl.')
 
         return False, voltage_dict, last_val
 
     def get_time(self, trace, index):
         """ get UTCDateTime from trace and index"""
         return trace.stats.starttime + trace.stats.delta * index
+
+
+class Status(object):
+    def __init__(self, message='-', detailed_messages=None, count: int = 0, last_occurrence=None, show_count=True):
+        if detailed_messages is None:
+            detailed_messages = []
+        self.show_count = show_count
+        self.message = message
+        self.messages = [message]
+        self.detailed_messages = detailed_messages
+        self.count = count
+        self.last_occurrence = last_occurrence
+        self.is_warn = None
+        self.is_error = None
+        self.is_other = False
+
+    def set_warn(self):
+        self.is_warn = True
+
+    def set_error(self):
+        self.is_warn = False
+        self.is_error = True
+
+    def set_ok(self):
+        self.is_warn = False
+        self.is_error = False
+
+    def get_status_str(self):
+        message = self.message
+        if self.count > 1 and self.show_count:
+            message += f' ({self.count})'
+        detailed_message = ''
+
+        for index, dm in enumerate(self.detailed_messages):
+            if index > 0:
+                detailed_message += ' | '
+            detailed_message += dm
+
+        return message, detailed_message
+
+
+class StatusOK(Status):
+    def __init__(self, message='OK', detailed_messages=None):
+        super(StatusOK, self).__init__(message=message, detailed_messages=detailed_messages)
+        self.set_ok()
+
+
+class StatusWarn(Status):
+    def __init__(self, message='WARN', count=1, last_occurence=None, detailed_messages=None, show_count=False):
+        super(StatusWarn, self).__init__(message=message, count=count, last_occurrence=last_occurence,
+                                         detailed_messages=detailed_messages, show_count=show_count)
+        self.set_warn()
+
+
+class StatusError(Status):
+    def __init__(self, message='FAIL', count=1, last_occurence=None, detailed_messages=None, show_count=False):
+        super(StatusError, self).__init__(message=message, count=count, last_occurrence=last_occurence,
+                                          detailed_messages=detailed_messages, show_count=show_count)
+        self.set_error()
+
+    
+class StatusOther(Status):
+    def __init__(self, messages=None, count=1, last_occurence=None, detailed_messages=None):
+        super(StatusOther, self).__init__(count=count, last_occurrence=last_occurence,
+                                          detailed_messages=detailed_messages)
+        if messages is None:
+            messages = []
+        self.messages = messages
+        self.is_other = True
+    
+    def get_status_str(self):
+        if self.messages == []:
+            return '-'
+    
+        message = ''
+        for index, mes in enumerate(self.messages):
+            if index > 0:
+                message += ' | '
+            message += mes
+
+        detailed_message = ''
+        for index, dm in enumerate(self.detailed_messages):
+            if index > 0:
+                detailed_message += ' | '
+            detailed_message += dm
+
+        return message, detailed_message
 
 
 if __name__ == '__main__':
