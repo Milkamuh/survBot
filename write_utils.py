@@ -10,6 +10,9 @@ def write_html_text(fobj, text):
 def write_html_header(fobj, refresh_rate=10):
     header = ['<!DOCTYPE html>',
               '<html>',
+              '<head>',
+              '<link rel="stylesheet" href="stylesheet.css">',
+              '</head>',
               f'<meta http-equiv="refresh" content="{refresh_rate}" >',
               '<meta charset="utf-8">',
               '<body>']
