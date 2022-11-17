@@ -21,6 +21,14 @@ from write_utils import write_html_text, write_html_row, write_html_footer, writ
     init_html_table, finish_html_table
 from utils import get_bg_color
 
+try:
+    import smtplib
+    from email.mime.text import MIMEText
+    mail_functionality = True
+except ImportError:
+    print('Could not import smtplib or mail. Disabled sending mails.')
+    mail_functionality = False
+
 pjoin = os.path.join
 UP = "\x1B[{length}A"
 CLR = "\x1B[0K"
@@ -64,6 +72,7 @@ class SurveillanceBot(object):
         self.station_list = []
         self.analysis_print_list = []
         self.analysis_results = {}
+        self.status_track = {}
         self.dataStream = Stream()
         self.data = {}
         self.print_count = 0
@@ -179,8 +188,9 @@ class SurveillanceBot(object):
             stream = self.data.get(nwst_id)
             if stream:
                 nsl = nsl_from_id(nwst_id)
-                station_qc = StationQC(stream, nsl, self.parameters, self.keys, qc_starttime, self.verbosity,
-                                       print_func=self.print)
+                station_qc = StationQC(stream, nsl, self.parameters, self.keys, qc_starttime,
+                                       self.verbosity, print_func=self.print,
+                                       status_track=self.status_track.get(nwst_id))
                 analysis_print_result = station_qc.return_print_analysis()
                 station_dict = station_qc.return_analysis()
             else:
@@ -188,9 +198,29 @@ class SurveillanceBot(object):
                 station_dict = self.get_no_data_station(nwst_id)
             self.analysis_print_list.append(analysis_print_result)
             self.analysis_results[nwst_id] = station_dict
+        self.track_status()
 
         self.update_status_message()
         return 'ok'
+
+    def track_status(self):
+        """
+        tracks error status of the last n_track + 1 errors.
+        """
+        n_track = self.parameters.get('n_track')
+        if not n_track or n_track < 1:
+            return
+        for nwst_id, analysis_dict in self.analysis_results.items():
+            if not nwst_id in self.status_track.keys():
+                self.status_track[nwst_id] = {}
+            for key, status in analysis_dict.items():
+                if not key in self.status_track[nwst_id].keys():
+                    self.status_track[nwst_id][key] = []
+                track_lst = self.status_track[nwst_id][key]
+                # pop list until length is n_track + 1
+                while len(track_lst) > n_track:
+                    track_lst.pop(0)
+                track_lst.append(status.is_error)
 
     def get_no_data_station(self, nwst_id, no_data='-', to_print=False):
         delay = self.get_station_delay(nwst_id)
@@ -392,7 +422,7 @@ class SurveillanceBot(object):
 
 
 class StationQC(object):
-    def __init__(self, stream, nsl, parameters, keys, starttime, verbosity, print_func):
+    def __init__(self, stream, nsl, parameters, keys, starttime, verbosity, print_func, status_track={}):
         """
         Station Quality Check class.
         :param nsl: dictionary containing network, station and location (key: str)
@@ -409,14 +439,14 @@ class StationQC(object):
         self.last_active = False
         self.print = print_func
 
-        timespan = self.parameters.get('timespan') * 24 * 3600
-        self.analysis_starttime = self.program_starttime - timespan
-
         self.keys = keys
         self.status_dict = {key: Status() for key in self.keys}
-        self.activity_check()
 
-        self.analyse_channels()
+        if not status_track:
+            status_track = {}
+        self.status_track = status_track
+
+        self.start()
 
     def status_ok(self, key, detailed_message="Everything OK", status_message='OK', overwrite=False):
         current_status = self.status_dict.get(key)
@@ -470,10 +500,62 @@ class StationQC(object):
 
         self._update_status(key, current_status, detailed_message, last_occurrence)
 
-        # change this to something more useful, SMS/EMAIL/PUSH
         if self.verbosity:
             self.print(f'{UTCDateTime()}: {detailed_message}', flush=False)
-        # warnings.warn(message)
+
+        # do not send error mail if this is the first run (e.g. program startup) or state was already error (unchanged)
+        if self.search_previous_errors(key):
+            self.send_mail(key, detailed_message)
+
+    def search_previous_errors(self, key):
+        """
+        Check n_track + 1 previous statuses for errors.
+        If first item in list is no error but all others are return True (first time n_track errors appeared --
+        if ALL n_track + 1 are error: error is old)
+        In all other cases return True.
+        This also prevents sending status (e.g. mail) in case of program startup
+        """
+        previous_errors = self.status_track.get(key)
+        # only if error list is filled n_track times
+        if previous_errors and len(previous_errors) == self.parameters.get('n_track') + 1:
+            # if first entry was no error but all others are, return True (-> new Fail n_track times)
+            if not previous_errors[0] and all(previous_errors[1:]):
+                return True
+        else:
+            return False
+
+    def send_mail(self, key, message):
+        """ Send info mail using parameters specified in parameters file """
+        if not mail_functionality:
+            if self.verbosity:
+                print('Mail functionality disabled. Return')
+            return
+        mail_params = self.parameters.get('EMAIL')
+        if not mail_params:
+            if self.verbosity:
+                print('parameter "EMAIL" not set in parameter file. Return')
+            return
+        sender = mail_params.get('sender')
+        addresses = mail_params.get('addresses')
+        server = mail_params.get('mailserver')
+        if not sender or not addresses:
+            if self.verbosity:
+                print('Mail sender or addresses not correctly defined. Return')
+            return
+        n_track = self.parameters.get('n_track')
+        interval = self.parameters.get('interval')
+        dt = timedelta(seconds=n_track * interval)
+        text = f'{key} FAIL status longer than {dt}: ' + message
+        msg = MIMEText(text)
+        msg['Subject'] = f'new FAIL status on station {self.network}.{self.station}'
+        msg['From'] = sender
+        msg['To'] = ', '.join(addresses)
+
+        # send message via SMTP server
+        s = smtplib.SMTP(server)
+        s.sendmail(sender, addresses, msg.as_string())
+        s.quit()
+
         
     def status_other(self, detailed_message, status_message, last_occurrence=None, count=1):
         key = 'other'
@@ -511,11 +593,18 @@ class StationQC(object):
         if len(endtimes) > 0:
             return max(endtimes)
 
+    def start(self):
+        self.analyse_channels()
+
     def analyse_channels(self):
+        timespan = self.parameters.get('timespan') * 24 * 3600
+        self.analysis_starttime = self.program_starttime - timespan
+
         if self.verbosity > 0:
             self.print(150 * '#')
             self.print('This is StationQT. Calculating quality for station'
                        ' {network}.{station}.{location}'.format(**self.nsl))
+        self.activity_check()
         self.voltage_analysis()
         self.pb_temp_analysis()
         self.pb_power_analysis()
