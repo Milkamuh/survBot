@@ -22,7 +22,6 @@ except ImportError:
         except ImportError:
             raise ImportError('Could import neither of PySide2, PySide6 or PyQt5')
 
-import matplotlib
 from matplotlib.figure import Figure
 
 if QtGui.__package__ in ['PySide2', 'PyQt5', 'PySide6']:
@@ -35,7 +34,7 @@ from obspy import UTCDateTime
 
 from survBot import SurveillanceBot
 from write_utils import *
-from utils import get_bg_color
+from utils import get_bg_color, modify_stream_for_plot
 
 try:
     from rest_api.utils import get_station_iccid
@@ -315,6 +314,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if st:
             self.plot_widget = PlotWidget(self)
             self.plot_widget.setWindowTitle(nwst_id)
+            st = modify_stream_for_plot(st, parameters=self.parameters)
             st.plot(equal_scale=False, method='full', block=False, fig=self.plot_widget.canvas.fig)
             self.plot_widget.show()
 

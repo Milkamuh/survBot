@@ -53,6 +53,6 @@ def write_html_row(fobj, items, html_key='td'):
 
 def get_print_title_str(parameters):
     timespan = parameters.get('timespan') * 24 * 3600
-    tdelta_str = str(timedelta(seconds=int(timespan)))
+    tdelta_str = str(timedelta(seconds=int(timespan))).replace(', 0:00:00', '')
     return f'Analysis table of router quality within the last {tdelta_str}'
 

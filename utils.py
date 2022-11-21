@@ -3,6 +3,7 @@
 
 import matplotlib
 
+
 def get_bg_color(check_key, status, dt_thresh=None, hex=False):
     message = status.message
     if check_key == 'last active':
@@ -23,6 +24,7 @@ def get_bg_color(check_key, status, dt_thresh=None, hex=False):
         bg_color = '#{:02x}{:02x}{:02x}'.format(*bg_color[:3])
     return bg_color
 
+
 def get_color(key):
     # some GUI default colors
     colors_dict = {'FAIL': (255, 50, 0, 255),
@@ -33,6 +35,7 @@ def get_color(key):
                    'undefined': (230, 230, 230, 255)}
     return colors_dict.get(key)
 
+
 def get_time_delay_color(dt, dt_thresh):
     """ Set color of time delay after thresholds specified in self.dt_thresh """
     if dt < dt_thresh[0]:
@@ -40,6 +43,7 @@ def get_time_delay_color(dt, dt_thresh):
     elif dt_thresh[0] <= dt < dt_thresh[1]:
         return get_color('WARN')
     return get_color('FAIL')
+
 
 def get_temp_color(temp, vmin=-10, vmax=60, cmap='coolwarm'):
     """ Get an rgba temperature value back from specified cmap, linearly interpolated between vmin and vmax. """
@@ -50,3 +54,51 @@ def get_temp_color(temp, vmin=-10, vmax=60, cmap='coolwarm'):
     rgba = [int(255 * c) for c in cmap(val)]
     return rgba
 
+
+def modify_stream_for_plot(st, parameters):
+    """ copy (if necessary) and modify stream for plotting """
+    ch_units = parameters.get('CHANNEL_UNITS')
+    ch_transf = parameters.get('CHANNEL_TRANSFORM')
+
+    # if either of both are defined make copy
+    if ch_units or ch_transf:
+        st = st.copy()
+
+    # modify trace for plotting by multiplying unit factor (e.g. 1e-3 mV to V)
+    if ch_units:
+        for tr in st:
+            channel = tr.stats.channel
+            unit_factor = ch_units.get(channel)
+            if unit_factor:
+                tr.data = tr.data * float(unit_factor)
+    # modify trace for plotting by other arithmetic expressions
+    if ch_transf:
+        for tr in st:
+            channel = tr.stats.channel
+            transf = ch_transf.get(channel)
+            if transf:
+                tr.data = transform_trace(tr.data, transf)
+
+    return st
+
+
+def transform_trace(data, transf):
+    """
+    Transform trace with arithmetic operations in order, specified in transf
+    @param data: numpy array
+    @param transf: list of lists with arithmetic operations (e.g. [['*', '20'], ] -> multiply data by 20
+    """
+    # This looks a little bit hardcoded, however it is safer than using e.g. "eval"
+    for operator_str, val in transf:
+        if operator_str == '+':
+            data = data + val
+        elif operator_str == '-':
+            data = data - val
+        elif operator_str == '*':
+            data = data * val
+        elif operator_str == '/':
+            data = data / val
+        else:
+            raise IOError(f'Unknown arithmethic operator string: {operator_str}')
+
+    return data

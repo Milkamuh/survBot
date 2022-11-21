@@ -17,13 +17,14 @@ import matplotlib.pyplot as plt
 from obspy import read, UTCDateTime, Stream
 from obspy.clients.filesystem.sds import Client
 
-from write_utils import write_html_text, write_html_row, write_html_footer, write_html_header, get_print_title_str,\
+from write_utils import write_html_text, write_html_row, write_html_footer, write_html_header, get_print_title_str, \
     init_html_table, finish_html_table
-from utils import get_bg_color
+from utils import get_bg_color, modify_stream_for_plot
 
 try:
     import smtplib
     from email.mime.text import MIMEText
+
     mail_functionality = True
 except ImportError:
     print('Could not import smtplib or mail. Disabled sending mails.')
@@ -188,7 +189,7 @@ class SurveillanceBot(object):
             stream = self.data.get(nwst_id)
             if stream:
                 nsl = nsl_from_id(nwst_id)
-                station_qc = StationQC(stream, nsl, self.parameters, self.keys, qc_starttime,
+                station_qc = StationQC(self, stream, nsl, self.parameters, self.keys, qc_starttime,
                                        self.verbosity, print_func=self.print,
                                        status_track=self.status_track.get(nwst_id))
                 analysis_print_result = station_qc.return_print_analysis()
@@ -277,7 +278,7 @@ class SurveillanceBot(object):
             if self.outpath_html:
                 self.write_html_table()
                 if self.parameters.get('html_figures'):
-                    self.write_html_figures(check_plot_time=not(first_exec))
+                    self.write_html_figures(check_plot_time=not (first_exec))
             else:
                 self.print_analysis()
             time.sleep(self.refresh_period)
@@ -321,21 +322,28 @@ class SurveillanceBot(object):
             os.mkdir(self.outpath_html)
 
     def write_html_figures(self, check_plot_time=True):
-        """ Write figures for html, right now hardcoded hourly """
+        """ Write figures for html (e.g. hourly) """
         if check_plot_time and not self.check_plot_hour():
             return
-        self.check_fig_dir()
 
         for nwst_id in self.station_list:
-            fig = plt.figure(figsize=(16, 9))
-            fnout = self.get_fig_path_abs(nwst_id)
-            st = self.data.get(nwst_id)
-            if st:
-                st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
-                ax = fig.axes[0]
-                ax.set_title(f'Hourly refreshed plot at (UTC) {UTCDateTime.now().strftime("%Y-%m-%d %H:%M:%S")}')
-                fig.savefig(fnout, dpi=150., bbox_inches='tight')
-            plt.close(fig)
+            self.write_html_figure(nwst_id)
+
+    def write_html_figure(self, nwst_id):
+        """ Write figure for html for specified station """
+        self.check_fig_dir()
+
+        fig = plt.figure(figsize=(16, 9))
+        fnout = self.get_fig_path_abs(nwst_id)
+        st = self.data.get(nwst_id)
+        if st:
+            st = modify_stream_for_plot(st, parameters=self.parameters)
+            st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
+            ax = fig.axes[0]
+            ax.set_title(f'Plot refreshed at (UTC) {UTCDateTime.now().strftime("%Y-%m-%d %H:%M:%S")}. '
+                         f'Refreshed hourly or on FAIL status.')
+            fig.savefig(fnout, dpi=150., bbox_inches='tight')
+        plt.close(fig)
 
     def write_html_table(self, default_color='#e6e6e6'):
         self.check_html_dir()
@@ -345,7 +353,7 @@ class SurveillanceBot(object):
         try:
             with open(fnout, 'w') as outfile:
                 write_html_header(outfile, self.refresh_period)
-                #write_html_table_title(outfile, self.parameters)
+                # write_html_table_title(outfile, self.parameters)
                 init_html_table(outfile)
 
                 # First write header items
@@ -405,7 +413,7 @@ class SurveillanceBot(object):
         timespan = timedelta(seconds=int(self.parameters.get('timespan') * 24 * 3600))
         self.status_message = f'Program starttime (UTC) {self.starttime.strftime("%Y-%m-%d %H:%M:%S")} | ' \
                               f'Current time (UTC) {UTCDateTime().strftime("%Y-%m-%d %H:%M:%S")} | ' \
-                              f'Refresh period: {self.refresh_period}s | '\
+                              f'Refresh period: {self.refresh_period}s | ' \
                               f'Showing data of last {timespan}'
 
     def print(self, string, **kwargs):
@@ -422,12 +430,13 @@ class SurveillanceBot(object):
 
 
 class StationQC(object):
-    def __init__(self, stream, nsl, parameters, keys, starttime, verbosity, print_func, status_track={}):
+    def __init__(self, parent, stream, nsl, parameters, keys, starttime, verbosity, print_func, status_track={}):
         """
         Station Quality Check class.
         :param nsl: dictionary containing network, station and location (key: str)
         :param parameters: parameters dictionary from parameters.yaml file
         """
+        self.parent = parent
         self.stream = stream
         self.nsl = nsl
         self.network = nsl.get('network')
@@ -447,6 +456,10 @@ class StationQC(object):
         self.status_track = status_track
 
         self.start()
+
+    @property
+    def nwst_id(self):
+        return f'{self.network}.{self.station}'
 
     def status_ok(self, key, detailed_message="Everything OK", status_message='OK', overwrite=False):
         current_status = self.status_dict.get(key)
@@ -497,6 +510,9 @@ class StationQC(object):
             current_status.count += count
         else:
             current_status = new_error
+            # refresh plot (using parent class) if error is new and not on program-startup
+            if self.search_previous_errors(key, n_errors=1):
+                self.parent.write_html_figure(self.nwst_id)
 
         self._update_status(key, current_status, detailed_message, last_occurrence)
 
@@ -507,7 +523,7 @@ class StationQC(object):
         if self.search_previous_errors(key):
             self.send_mail(key, detailed_message)
 
-    def search_previous_errors(self, key):
+    def search_previous_errors(self, key, n_errors=None):
         """
         Check n_track + 1 previous statuses for errors.
         If first item in list is no error but all others are return True (first time n_track errors appeared --
@@ -515,9 +531,12 @@ class StationQC(object):
         In all other cases return True.
         This also prevents sending status (e.g. mail) in case of program startup
         """
+        if n_errors is not None:
+            n_errors = self.parameters.get('n_track') + 1
+
         previous_errors = self.status_track.get(key)
         # only if error list is filled n_track times
-        if previous_errors and len(previous_errors) == self.parameters.get('n_track') + 1:
+        if previous_errors and len(previous_errors) == n_errors:
             # if first entry was no error but all others are, return True (-> new Fail n_track times)
             if not previous_errors[0] and all(previous_errors[1:]):
                 return True
@@ -547,7 +566,7 @@ class StationQC(object):
         dt = timedelta(seconds=n_track * interval)
         text = f'{key} FAIL status longer than {dt}: ' + message
         msg = MIMEText(text)
-        msg['Subject'] = f'new FAIL status on station {self.network}.{self.station}'
+        msg['Subject'] = f'new FAIL status on station {self.nwst_id}'
         msg['From'] = sender
         msg['To'] = ', '.join(addresses)
 
@@ -556,7 +575,6 @@ class StationQC(object):
         s.sendmail(sender, addresses, msg.as_string())
         s.quit()
 
-        
     def status_other(self, detailed_message, status_message, last_occurrence=None, count=1):
         key = 'other'
         new_status = StatusOther(count=count, messages=[status_message])
@@ -611,7 +629,7 @@ class StationQC(object):
         self.pb_rout_charge_analysis()
 
     def return_print_analysis(self):
-        items = [f'{self.network}.{self.station}']
+        items = [self.nwst_id]
         for key in self.keys:
             status = self.status_dict[key]
             message = status.message
@@ -670,11 +688,10 @@ class StationQC(object):
             self.warn(key, detailed_message=detailed_message, count=n_overvolt,
                       last_occurrence=self.get_last_occurrence(trace, overvolt))
 
-
         if len(undervolt) > 0:
             # try calculate number of voltage peaks from gaps between indices
             n_undervolt = len(np.where(np.diff(undervolt) > 1)[0]) + 1
-            detailed_message = warn_message + f' {n_undervolt}x Voltage under {low_volt}V '\
+            detailed_message = warn_message + f' {n_undervolt}x Voltage under {low_volt}V ' \
                                + self.get_last_occurrence_timestring(trace, undervolt)
             self.warn(key, detailed_message=detailed_message, count=n_undervolt,
                       last_occurrence=self.get_last_occurrence(trace, undervolt))
@@ -693,7 +710,7 @@ class StationQC(object):
         nsamp_av = int(trace.stats.sampling_rate) * timespan
         av_temp_str = str(round(np.mean(temp[-nsamp_av:]), 1)) + deg_str
         # dt of average
-        dt_t_str = str(timedelta(seconds=int(timespan)))
+        dt_t_str = str(timedelta(seconds=int(timespan))).replace(', 0:00:00', '')
         # current temp
         cur_temp = round(temp[-1], 1)
         if self.verbosity > 1:
@@ -778,7 +795,7 @@ class StationQC(object):
                         n_occurrences = len(np.where(np.diff(ind_array) > 1)[0]) + 1
                         self.warn(key=key,
                                   detailed_message=f'Trace {trace.get_id()}: '
-                                          f'Found {n_occurrences} occurrence(s) of {volt_lvl}V: {key}: {message}'
+                                                   f'Found {n_occurrences} occurrence(s) of {volt_lvl}V: {key}: {message}'
                                                    + self.get_last_occurrence_timestring(trace, ind_array),
                                   count=n_occurrences,
                                   last_occurrence=self.get_last_occurrence(trace, ind_array))
@@ -839,9 +856,9 @@ class StationQC(object):
             n_occurrences = len(np.where(np.diff(under) > 1)[0]) + 1
             voltage_dict[-1] = under
             self.status_other(detailed_message=f'Trace {trace.get_id()}: '
-                              f'Voltage below {pb_ok}V in {len(under)} samples, {n_occurrences} time(s). '
-                              f'Mean voltage: {np.mean(voltage):.2}'
-                                       + self.get_last_occurrence_timestring(trace, under),
+                                               f'Voltage below {pb_ok}V in {len(under)} samples, {n_occurrences} time(s). '
+                                               f'Mean voltage: {np.mean(voltage):.2}'
+                                               + self.get_last_occurrence_timestring(trace, under),
                               status_message='under 1V ({})'.format(n_occurrences))
 
         # classify last voltage values
@@ -860,8 +877,8 @@ class StationQC(object):
             max_uncl = self.parameters.get('THRESHOLDS').get('unclassified')
             if max_uncl and n_unclassified > max_uncl:
                 self.status_other(detailed_message=f'Trace {trace.get_id()}: '
-                                               f'{n_unclassified}/{len(all_indices)} '
-                                               f'unclassified voltage values in channel {trace.get_id()}',
+                                                   f'{n_unclassified}/{len(all_indices)} '
+                                                   f'unclassified voltage values in channel {trace.get_id()}',
                                   status_message=f'{channel}: {n_unclassified} uncl.')
 
         return False, voltage_dict, last_val
@@ -929,7 +946,7 @@ class StatusError(Status):
                                           detailed_messages=detailed_messages, show_count=show_count)
         self.set_error()
 
-    
+
 class StatusOther(Status):
     def __init__(self, messages=None, count=1, last_occurence=None, detailed_messages=None):
         super(StatusOther, self).__init__(count=count, last_occurrence=last_occurence,
@@ -938,11 +955,11 @@ class StatusOther(Status):
             messages = []
         self.messages = messages
         self.is_other = True
-    
+
     def get_status_str(self):
         if self.messages == []:
             return '-'
-    
+
         message = ''
         for index, mes in enumerate(self.messages):
             if index > 0:
