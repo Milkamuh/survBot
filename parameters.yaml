@@ -8,7 +8,7 @@ channel_names: ["Temperature (°)", "Voltage (V)", "Voltage (V)", "Voltage (V)"]
 stations_blacklist: ["TEST", "EREA"]
 networks_blacklist: []
 interval: 60               # Perform checks every x seconds
-n_track: 120               # wait number of intervals after FAIL before performing an action (i.e. send mail)
+n_track: 120               # wait n FAIL intervals before performing an action (i.e. send mail + end highlight status)
 timespan: 3                # Check data of the recent x days
 verbosity: 0
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)

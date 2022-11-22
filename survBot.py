@@ -352,7 +352,7 @@ class SurveillanceBot(object):
                 fig.savefig(fnout, dpi=150., bbox_inches='tight')
         plt.close(fig)
 
-    def write_html_table(self, default_color='#e6e6e6'):
+    def write_html_table(self, default_color='#e6e6e6', default_header_color='#999'):
         self.check_html_dir()
         fnout = pjoin(self.outpath_html, 'survBot_out.html')
         if not fnout:
@@ -368,16 +368,17 @@ class SurveillanceBot(object):
                 # add columns for additional links
                 for key in self.add_links:
                     header.insert(-1, key)
-                header_items = [dict(text='Station', color=default_color)]
+                header_items = [dict(text='Station', color=default_header_color)]
                 for check_key in header:
-                    item = dict(text=check_key, color=default_color)
+                    item = dict(text=check_key, color=default_header_color)
                     header_items.append(item)
                 write_html_row(outfile, header_items, html_key='th')
 
                 # Write all cells
                 for nwst_id in self.station_list:
                     fig_name = self.get_fig_path_rel(nwst_id)
-                    col_items = [dict(text=nwst_id.rstrip('.'), color=default_color, hyperlink=fig_name)]
+                    col_items = [dict(text=nwst_id.rstrip('.'), color=default_color, hyperlink=fig_name,
+                                      bold=True)]
                     for check_key in header:
                         if check_key in self.keys:
                             status_dict = self.analysis_results.get(nwst_id)
@@ -395,7 +396,8 @@ class SurveillanceBot(object):
                                 if not type(message) in [str]:
                                     message = str(message) + deg_str
 
-                            item = dict(text=str(message), tooltip=str(detailed_message), color=bg_color)
+                            item = dict(text=str(message), tooltip=str(detailed_message), color=bg_color,
+                                        blink=status.is_active)
                         elif check_key in self.add_links:
                             value = self.add_links.get(check_key).get('URL')
                             link_text = self.add_links.get(check_key).get('text')
@@ -517,11 +519,10 @@ class StationQC(object):
             current_status.count += count
         else:
             current_status = new_error
-            # refresh plot (using parent class) if error is new and not on program-startup
+            # if error is new and not on program-startup set active and refresh plot (using parent class)
             if self.search_previous_errors(key, n_errors=1):
+                current_status.is_active = True
                 self.parent.write_html_figure(self.nwst_id)
-
-        self._update_status(key, current_status, detailed_message, last_occurrence)
 
         if self.verbosity:
             self.print(f'{UTCDateTime()}: {detailed_message}', flush=False)
@@ -529,6 +530,10 @@ class StationQC(object):
         # do not send error mail if this is the first run (e.g. program startup) or state was already error (unchanged)
         if self.search_previous_errors(key):
             self.send_mail(key, detailed_message)
+            # set status to "inactive" after sending info mail
+            current_status.is_active = False
+
+        self._update_status(key, current_status, detailed_message, last_occurrence)
 
     def search_previous_errors(self, key, n_errors=None):
         """
@@ -908,6 +913,7 @@ class Status(object):
         self.is_warn = None
         self.is_error = None
         self.is_other = False
+        self.is_active = False
 
     def set_warn(self):
         self.is_warn = True
