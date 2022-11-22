@@ -102,3 +102,23 @@ def transform_trace(data, transf):
             raise IOError(f'Unknown arithmethic operator string: {operator_str}')
 
     return data
+
+
+def annotate_trace_axes(fig, parameters, verbosity=0):
+    """
+    Adds channel names to y-axis if defined in parameters.
+    Can get mixed up if channel order in stream and channel names defined in parameters.yaml differ, but it is
+    difficult to assess the correct order from Obspy plotting routing.
+    """
+    names = parameters.get('channel_names')
+    if not names: # or not len(st.traces):
+        return
+    if not len(names) == len(fig.axes):
+        if verbosity:
+            print('Mismatch in axis and label lengths. Not adding plot labels')
+        return
+    for channel_name, ax in zip(names, fig.axes):
+        if channel_name:
+            ax.set_ylabel(channel_name)
+
+

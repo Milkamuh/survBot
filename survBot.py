@@ -19,7 +19,7 @@ from obspy.clients.filesystem.sds import Client
 
 from write_utils import write_html_text, write_html_row, write_html_footer, write_html_header, get_print_title_str, \
     init_html_table, finish_html_table
-from utils import get_bg_color, modify_stream_for_plot
+from utils import get_bg_color, modify_stream_for_plot, annotate_trace_axes
 
 try:
     import smtplib
@@ -337,12 +337,19 @@ class SurveillanceBot(object):
         fnout = self.get_fig_path_abs(nwst_id)
         st = self.data.get(nwst_id)
         if st:
-            st = modify_stream_for_plot(st, parameters=self.parameters)
-            st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
-            ax = fig.axes[0]
-            ax.set_title(f'Plot refreshed at (UTC) {UTCDateTime.now().strftime("%Y-%m-%d %H:%M:%S")}. '
-                         f'Refreshed hourly or on FAIL status.')
-            fig.savefig(fnout, dpi=150., bbox_inches='tight')
+            # TODO: this section might fail, adding try-except block for analysis and to prevent program from crashing
+            try:
+                st = modify_stream_for_plot(st, parameters=self.parameters)
+                st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
+                annotate_trace_axes(fig, self.parameters, self.verbosity)
+            except Exception as e:
+                print(f'Could not generate plot for {nwst_id}:')
+                print(traceback.format_exc())
+            if len(fig.axes) > 0:
+                ax = fig.axes[0]
+                ax.set_title(f'Plot refreshed at (UTC) {UTCDateTime.now().strftime("%Y-%m-%d %H:%M:%S")}. '
+                             f'Refreshed hourly or on FAIL status.')
+                fig.savefig(fnout, dpi=150., bbox_inches='tight')
         plt.close(fig)
 
     def write_html_table(self, default_color='#e6e6e6'):
