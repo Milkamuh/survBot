@@ -4,12 +4,12 @@ networks: ["1Y", "HA"]
 stations: "*"
 locations: "*"
 channels: ["EX1", "EX2", "EX3", "VEI"]    # Specify SOH channels, currently supported EX[1-3] and VEI
-channel_names: ["Temperature (°)", "Voltage (V)", "Voltage (V)", "Voltage (V)"] # names for plotting (optional)
+channel_names: ["Temperature (°)", "230V/12V Status (V)", "Router/Charger State (V)", "Logger Voltage (V)"] # names for plotting (optional)
 stations_blacklist: ["TEST", "EREA"]
 networks_blacklist: []
 interval: 60               # Perform checks every x seconds
 n_track: 120               # wait n FAIL intervals before performing an action (i.e. send mail + end highlight status)
-timespan: 3                # Check data of the recent x days
+timespan: 7                # Check data of the recent x days
 verbosity: 0
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
 warn_count: False          # show number of warnings and errors in table
