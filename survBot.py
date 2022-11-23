@@ -377,8 +377,9 @@ class SurveillanceBot(object):
                 # Write all cells
                 for nwst_id in self.station_list:
                     fig_name = self.get_fig_path_rel(nwst_id)
-                    col_items = [dict(text=nwst_id.rstrip('.'), color=default_color, hyperlink=fig_name,
-                                      bold=True)]
+                    nwst_id_str = nwst_id.rstrip('.')
+                    col_items = [dict(text=nwst_id_str, color=default_color, hyperlink=fig_name,
+                                      bold=True, tooltip=f'Show plot of {nwst_id_str}')]
                     for check_key in header:
                         if check_key in self.keys:
                             status_dict = self.analysis_results.get(nwst_id)
@@ -520,27 +521,29 @@ class StationQC(object):
         else:
             current_status = new_error
             # if error is new and not on program-startup set active and refresh plot (using parent class)
-            if self.search_previous_errors(key, n_errors=1):
-                current_status.is_active = True
+            if self.search_previous_errors(key, n_errors=1) is True:
                 self.parent.write_html_figure(self.nwst_id)
 
         if self.verbosity:
             self.print(f'{UTCDateTime()}: {detailed_message}', flush=False)
 
         # do not send error mail if this is the first run (e.g. program startup) or state was already error (unchanged)
-        if self.search_previous_errors(key):
+        if self.search_previous_errors(key) is True:
             self.send_mail(key, detailed_message)
             # set status to "inactive" after sending info mail
             current_status.is_active = False
+        elif self.search_previous_errors(key) == 'active':
+            current_status.is_active = True
 
         self._update_status(key, current_status, detailed_message, last_occurrence)
 
     def search_previous_errors(self, key, n_errors=None):
         """
         Check n_track + 1 previous statuses for errors.
-        If first item in list is no error but all others are return True (first time n_track errors appeared --
-        if ALL n_track + 1 are error: error is old)
-        In all other cases return True.
+        If first item in list is no error but all others are return True
+        (first time n_track errors appeared if ALL n_track + 1 are error: error is old)
+        If last item is error but not all items are error yet return keyword 'active' -> error active, no message sent
+        In all other cases return False.
         This also prevents sending status (e.g. mail) in case of program startup
         """
         if n_errors is not None:
@@ -552,8 +555,10 @@ class StationQC(object):
             # if first entry was no error but all others are, return True (-> new Fail n_track times)
             if not previous_errors[0] and all(previous_errors[1:]):
                 return True
-        else:
-            return False
+        # in case previous_errors exists, last item is error but not all items are error, error still active
+        elif previous_errors and previous_errors[-1] and not all(previous_errors):
+            return 'active'
+        return False
 
     def send_mail(self, key, message):
         """ Send info mail using parameters specified in parameters file """
