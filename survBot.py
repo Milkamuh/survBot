@@ -529,7 +529,7 @@ class StationQC(object):
 
         # do not send error mail if this is the first run (e.g. program startup) or state was already error (unchanged)
         if self.search_previous_errors(key) is True:
-            self.send_mail(key, detailed_message)
+            self.send_mail(key, status_type='FAIL', additional_message=detailed_message)
             # set status to "inactive" after sending info mail
             current_status.is_active = False
         elif self.search_previous_errors(key) == 'active':
@@ -560,7 +560,7 @@ class StationQC(object):
             return 'active'
         return False
 
-    def send_mail(self, key, message):
+    def send_mail(self, key, status_type, additional_message=''):
         """ Send info mail using parameters specified in parameters file """
         if not mail_functionality:
             if self.verbosity:
@@ -578,12 +578,10 @@ class StationQC(object):
             if self.verbosity:
                 print('Mail sender or addresses not correctly defined. Return')
             return
-        n_track = self.parameters.get('n_track')
-        interval = self.parameters.get('interval')
-        dt = timedelta(seconds=n_track * interval)
-        text = f'{key} FAIL status longer than {dt}: ' + message
+        dt = self.get_dt_for_action()
+        text = f'{key}: Status {status_type} longer than {dt}: ' + additional_message
         msg = MIMEText(text)
-        msg['Subject'] = f'new FAIL status on station {self.nwst_id}'
+        msg['Subject'] = f'new message on station {self.nwst_id}'
         msg['From'] = sender
         msg['To'] = ', '.join(addresses)
 
@@ -591,6 +589,12 @@ class StationQC(object):
         s = smtplib.SMTP(server)
         s.sendmail(sender, addresses, msg.as_string())
         s.quit()
+
+    def get_dt_for_action(self):
+        n_track = self.parameters.get('n_track')
+        interval = self.parameters.get('interval')
+        dt = timedelta(seconds=n_track * interval)
+        return dt
 
     def status_other(self, detailed_message, status_message, last_occurrence=None, count=1):
         key = 'other'
@@ -610,13 +614,15 @@ class StationQC(object):
 
         self.status_dict[key] = current_status
 
-    def activity_check(self):
+    def activity_check(self, key='last_active'):
         self.last_active = self.last_activity()
         if not self.last_active:
             status = StatusError()
         else:
-            message = timedelta(seconds=int(self.program_starttime - self.last_active))
-            status = Status(message=message)
+            dt_active = timedelta(seconds=int(self.program_starttime - self.last_active))
+            status = Status(message=dt_active)
+            self.check_for_inactive_message(key, dt_active)
+
         self.status_dict['last active'] = status
 
     def last_activity(self):
@@ -627,6 +633,12 @@ class StationQC(object):
             endtimes.append(trace.stats.endtime)
         if len(endtimes) > 0:
             return max(endtimes)
+
+    def check_for_inactive_message(self, key, dt_active):
+        dt_action = self.get_dt_for_action()
+        interval = self.parameters.get('interval')
+        if dt_action <= dt_active < dt_action + interval:
+            self.send_mail(key, status_type='Inactive')
 
     def start(self):
         self.analyse_channels()
@@ -906,7 +918,9 @@ class StationQC(object):
 
 
 class Status(object):
-    def __init__(self, message='-', detailed_messages=None, count: int = 0, last_occurrence=None, show_count=True):
+    def __init__(self, message=None, detailed_messages=None, count: int = 0, last_occurrence=None, show_count=True):
+        if message is None:
+            message = '-'
         if detailed_messages is None:
             detailed_messages = []
         self.show_count = show_count
