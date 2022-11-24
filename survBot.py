@@ -637,7 +637,7 @@ class StationQC(object):
     def check_for_inactive_message(self, key, dt_active):
         dt_action = self.get_dt_for_action()
         interval = self.parameters.get('interval')
-        if dt_action <= dt_active < dt_action + interval:
+        if dt_action <= dt_active < dt_action + timedelta(seconds=interval):
             self.send_mail(key, status_type='Inactive')
 
     def start(self):
