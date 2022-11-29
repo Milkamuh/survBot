@@ -18,6 +18,9 @@ def write_html_header(fobj, refresh_rate=10):
               '</head>',
               f'<meta http-equiv="refresh" content="{refresh_rate}" >',
               '<meta charset="utf-8">',
+              '<meta name="viewport" content="width=device-width, initial-scale=1">',
+              '<link rel="stylesheet" media="only screen and (max-width: 400px)" href="mobile.css" />',
+              '<link rel="stylesheet" media="only screen and (min-width: 401px)" href="desktop.css" />',
               '<body>']
     # style = ['<style>',
     #           'table, th, td {',
@@ -58,8 +61,9 @@ def write_html_row(fobj, items, html_key='td'):
         color = '#e6e6e6' if color == '#000000' else color
         hyperlink = item.get('hyperlink')
         image_str = f'<a href="{hyperlink}">' if hyperlink else ''
-        blink_str = f' class="blink-bg"' if item.get('blink') else ''
-        fobj.write(2 * default_space + f'<{html_key}{blink_str} bgcolor="{color}" title="{tooltip}"> {image_str}'
+        html_class = item.get('html_class')
+        class_str = f' class="{html_class}"' if html_class else ''
+        fobj.write(2 * default_space + f'<{html_key}{class_str} bgcolor="{color}" title="{tooltip}"> {image_str}'
                    + text + f'</{html_key}>\n')
     fobj.write(default_space + '</tr>\n')
 

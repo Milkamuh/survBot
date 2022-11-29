@@ -352,7 +352,17 @@ class SurveillanceBot(object):
                 fig.savefig(fnout, dpi=150., bbox_inches='tight')
         plt.close(fig)
 
-    def write_html_table(self, default_color='#e6e6e6', default_header_color='#999'):
+    def write_html_table(self, default_color='#e6e6e6', default_header_color='#999', hide_keys_mobile=('other')):
+
+        def get_html_class(status=None, check_key=None):
+            """ helper function for html class if a certain condition is fulfilled """
+            html_class = None
+            if status and status.is_active:
+                html_class = 'blink-bg'
+            if check_key in hide_keys_mobile:
+                html_class = 'hidden-mobile'
+            return html_class
+
         self.check_html_dir()
         fnout = pjoin(self.outpath_html, 'survBot_out.html')
         if not fnout:
@@ -370,7 +380,8 @@ class SurveillanceBot(object):
                     header.insert(-1, key)
                 header_items = [dict(text='Station', color=default_header_color)]
                 for check_key in header:
-                    item = dict(text=check_key, color=default_header_color)
+                    html_class = get_html_class(check_key=check_key)
+                    item = dict(text=check_key, color=default_header_color, html_class=html_class)
                     header_items.append(item)
                 write_html_row(outfile, header_items, html_key='th')
 
@@ -397,8 +408,9 @@ class SurveillanceBot(object):
                                 if not type(message) in [str]:
                                     message = str(message) + deg_str
 
+                            html_class = get_html_class(status=status, check_key=check_key)
                             item = dict(text=str(message), tooltip=str(detailed_message), color=bg_color,
-                                        blink=status.is_active)
+                                        html_class=html_class)
                         elif check_key in self.add_links:
                             value = self.add_links.get(check_key).get('URL')
                             link_text = self.add_links.get(check_key).get('text')
