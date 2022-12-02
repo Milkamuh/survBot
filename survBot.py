@@ -19,7 +19,7 @@ from obspy.clients.filesystem.sds import Client
 
 from write_utils import write_html_text, write_html_row, write_html_footer, write_html_header, get_print_title_str, \
     init_html_table, finish_html_table
-from utils import get_bg_color, modify_stream_for_plot, annotate_trace_axes
+from utils import get_bg_color, modify_stream_for_plot, trace_ylabels, trace_yticks
 
 try:
     import smtplib
@@ -341,7 +341,8 @@ class SurveillanceBot(object):
             try:
                 st = modify_stream_for_plot(st, parameters=self.parameters)
                 st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
-                annotate_trace_axes(fig, self.parameters, self.verbosity)
+                trace_ylabels(fig, self.parameters, self.verbosity)
+                trace_yticks(fig, self.parameters, self.verbosity)
             except Exception as e:
                 print(f'Could not generate plot for {nwst_id}:')
                 print(traceback.format_exc())
@@ -349,6 +350,8 @@ class SurveillanceBot(object):
                 ax = fig.axes[0]
                 ax.set_title(f'Plot refreshed at (UTC) {UTCDateTime.now().strftime("%Y-%m-%d %H:%M:%S")}. '
                              f'Refreshed hourly or on FAIL status.')
+                for ax in fig.axes:
+                    ax.grid(True, alpha=0.1)
                 fig.savefig(fnout, dpi=150., bbox_inches='tight')
         plt.close(fig)
 
