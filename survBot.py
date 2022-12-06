@@ -720,9 +720,6 @@ class StationQC(object):
             self.status_ok(key, detailed_message=f'U={(voltage[-1])}V')
             return
 
-        n_overvolt = 0
-        n_undervolt = 0
-
         warn_message = f'Trace {trace.get_id()}:'
         if len(overvolt) > 0:
             # try calculate number of voltage peaks from gaps between indices
@@ -835,8 +832,7 @@ class StationQC(object):
                         self.status_ok(key)
                         continue
                     if volt_lvl > 1:
-                        # try calculate number of voltage peaks from gaps between indices
-                        n_occurrences = len(np.where(np.diff(ind_array) > 1)[0]) + 1
+                        n_occurrences = self.calc_occurrences(ind_array)
                         self.warn(key=key,
                                   detailed_message=f'Trace {trace.get_id()}: '
                                                    f'Found {n_occurrences} occurrence(s) of {volt_lvl}V: {key}: {message}'
@@ -846,6 +842,32 @@ class StationQC(object):
                     # if last_val == current voltage (which is not 1) -> FAIL or last_val < 1: PBox no data
                     if volt_lvl == last_val or (volt_lvl == -1 and last_val < 1):
                         self.error(key, detailed_message=f'Last PowBox voltage state {last_val}V: {message}')
+
+    def calc_occurrences(self, ind_array):
+        # try calculate number of voltage peaks/plateaus from gaps between indices
+        if len(ind_array) == 0:
+            return 0
+        else:
+            # start index at 1 if there are gaps (n_peaks = n_gaps + 1)
+            n_occurrences = 1
+
+        min_samples = self.parameters.get('min_sample')
+        if not min_samples:
+            min_samples = 1
+
+        # calculated differences in index array, diff > 1: gap, diff == 1: within peak/plateau
+        diffs = np.diff(ind_array)
+        gap_start_inds = np.where(np.diff(ind_array) > 1)[0]
+        # iterate over all gaps and check "min_samples" before the gap
+        for gsi in gap_start_inds:
+            # right boundary index of peak (gap index - 1)
+            peak_rb_ind = gsi - 1
+            # left boundary index of peak
+            peak_lb_ind = max([0, peak_rb_ind - min_samples])
+            if all(diffs[peak_lb_ind: peak_rb_ind] == 1):
+                n_occurrences += 1
+
+        return n_occurrences
 
     def get_trace(self, stream, keys):
         if not type(keys) == list:

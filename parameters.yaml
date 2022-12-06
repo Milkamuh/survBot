@@ -7,11 +7,12 @@ channels: ["EX1", "EX2", "EX3", "VEI"]    # Specify SOH channels, currently supp
 stations_blacklist: ["TEST", "EREA"]      # exclude these stations
 networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
-n_track: 120               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
+n_track: 300               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
 timespan: 7                # Check data of the recent x days
 verbosity: 0               # verbosity flag
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
-warn_count: False          # show number of warnings and errors in table
+warn_count: False           # show number of warnings and errors in table
+min_sample: 3              # minimum samples for raising Warn/FAIL
 dt_thresh: [300, 1800]     # threshold (s) for timing delay colourisation (yellow/red)
 html_figures: True         # Create html figure directory and links
 reread_parameters: True    # reread parameters file (change parameters on runtime, not for itself/GUI refresh/datapath)
