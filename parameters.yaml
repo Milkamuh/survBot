@@ -41,7 +41,7 @@ THRESHOLDS:
   pb_thresh: 0.2               # Threshold for PowBox Voltage check +/- (V)
   max_temp: 50                 # max temperature for temperature warning
   low_volt: 12                 # min voltage for low voltage warning
-  high_volt: 14.8               # max voltage for over voltage warning
+  high_volt: 14.8              # max voltage for over voltage warning
   unclassified: 5              # min voltage samples not classified for warning
   clockquality_warn: 90        # clock quality ranges from 0 % to 100 % with 100 % being the best level
   clockquality_fail: 70
@@ -67,6 +67,7 @@ EMAIL:
 channel_names: ["Clock Quality (%)", "Temperature (°C)", "230V/12V Status (V)", "Router/Charger State (V)", "Logger Voltage (V)"] # names for plotting (optional)
 # specify y-ticks (and ylims) giving, (ymin, ymax, step) for each of the above channels (0: default)
 CHANNEL_TICKS:
+  - [0, 100, 20]
   - [-10, 50, 10]
   - [1, 5, 1]
   - [1, 5, 1]
