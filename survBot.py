@@ -721,13 +721,10 @@ class StationQC(object):
             self.status_ok(key, detailed_message=f'ClockQuality={(clockQuality[-1])}')
             return
  
-        n_qc_warn = 0
-        n_qc_fail = 0
-
         warn_message = f'Trace {trace.get_id()}:'
         if len(clockQuality_warn) > 0:
             # try calculate number of warn peaks from gaps between indices
-            n_qc_warn = len(np.where(np.diff(clockQuality_warn) > 1)[0]) + 1
+            n_qc_warn = self.calc_occurrences(clockQuality_warn)
             detailed_message = warn_message + f' {n_qc_warn}x Qlock Quality less then {clockQuality_warn_level}' \
                                + self.get_last_occurrence_timestring(trace, clockQuality_warn)
             self.warn(key, detailed_message=detailed_message, count=n_qc_warn,
@@ -735,7 +732,7 @@ class StationQC(object):
 
         if len(clockQuality_fail) > 0:
             # try calculate number of fail peaks from gaps between indices
-            n_qc_fail = len(np.where(np.diff(clockQuality_fail) > 1)[0]) + 1
+            n_qc_fail = self.calc_occurrences(clockQuality_fail)
             detailed_message = warn_message + f' {n_qc_fail}x Qlock Quality less then {clockQuality_fail_level}V ' \
                                + self.get_last_occurrence_timestring(trace, clockQuality_fail)
             self.error(key, detailed_message=detailed_message, count=n_qc_fail,
