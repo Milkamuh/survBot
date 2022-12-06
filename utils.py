@@ -104,7 +104,7 @@ def transform_trace(data, transf):
     return data
 
 
-def annotate_trace_axes(fig, parameters, verbosity=0):
+def trace_ylabels(fig, parameters, verbosity=0):
     """
     Adds channel names to y-axis if defined in parameters.
     Can get mixed up if channel order in stream and channel names defined in parameters.yaml differ, but it is
@@ -122,3 +122,24 @@ def annotate_trace_axes(fig, parameters, verbosity=0):
             ax.set_ylabel(channel_name)
 
 
+def trace_yticks(fig, parameters, verbosity=0):
+    """
+    Adds channel names to y-axis if defined in parameters.
+    Can get mixed up if channel order in stream and channel names defined in parameters.yaml differ, but it is
+    difficult to assess the correct order from Obspy plotting routing.
+    """
+    ticks = parameters.get('CHANNEL_TICKS')
+    if not ticks:
+        return
+    if not len(ticks) == len(fig.axes):
+        if verbosity:
+            print('Mismatch in axis tick and label lengths. Not changing plot ticks.')
+        return
+    for ytick_tripple, ax in zip(ticks, fig.axes):
+        if not ytick_tripple:
+            continue
+        ymin, ymax, step = ytick_tripple
+
+        yticks = list(range(ymin, ymax + step, step))
+        ax.set_yticks(yticks)
+        ax.set_ylim(ymin - step, ymax + step)
