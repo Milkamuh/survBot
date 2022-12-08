@@ -157,7 +157,7 @@ class SurveillanceBot(object):
             if filename in self.filenames_read:
                 continue
             try:
-                st_new = read(filename)
+                st_new = read(filename, dtype=float)
                 # add file to read filenames to prevent re-reading in case it is not the current day (or end of
                 # previous day)
                 if not filename.endswith(f'{current_day:03}') and not (
@@ -167,7 +167,7 @@ class SurveillanceBot(object):
                 print(f'Could not read file {filename}:', e)
                 continue
             self.dataStream += st_new
-        self.dataStream.merge()
+        self.dataStream.merge(fill_value=np.nan)
 
         # organise data in dictionary with key for each station
         for trace in self.dataStream:
