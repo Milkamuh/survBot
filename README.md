@@ -32,6 +32,8 @@ The main program with html output is executed by entering
 python survBot.py -html path_for_html_output
 ```
 
+There are example stylesheets in the folder *stylesheets* that can be copied into the path_for_html_output if desired.
+
 The GUI can be loaded via
 
 ```shell script
