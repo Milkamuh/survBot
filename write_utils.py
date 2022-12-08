@@ -14,19 +14,13 @@ def write_html_header(fobj, refresh_rate=10):
     header = ['<!DOCTYPE html>',
               '<html>',
               '<head>',
-              '<link rel="stylesheet" href="stylesheet.css">',
+              '  <link rel="stylesheet" media="only screen and (max-width: 400px)" href="mobile.css" />',
+              '  <link rel="stylesheet" media="only screen and (min-width: 401px)" href="desktop.css" />',
               '</head>',
               f'<meta http-equiv="refresh" content="{refresh_rate}" >',
               '<meta charset="utf-8">',
               '<meta name="viewport" content="width=device-width, initial-scale=1">',
-              '<link rel="stylesheet" media="only screen and (max-width: 400px)" href="mobile.css" />',
-              '<link rel="stylesheet" media="only screen and (min-width: 401px)" href="desktop.css" />',
               '<body>']
-    # style = ['<style>',
-    #           'table, th, td {',
-    #           'border:1px solid black;',
-    #           '}',
-    #           '</style>',]
     for item in header:
         fobj.write(item + '\n')
 
