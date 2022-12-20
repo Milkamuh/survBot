@@ -19,7 +19,7 @@ from obspy.clients.filesystem.sds import Client
 
 from write_utils import write_html_text, write_html_row, write_html_footer, write_html_header, get_print_title_str, \
     init_html_table, finish_html_table
-from utils import get_bg_color, modify_stream_for_plot, annotate_trace_axes
+from utils import get_bg_color, modify_stream_for_plot, trace_ylabels, trace_yticks
 
 try:
     import smtplib
@@ -157,7 +157,7 @@ class SurveillanceBot(object):
             if filename in self.filenames_read:
                 continue
             try:
-                st_new = read(filename)
+                st_new = read(filename, dtype=float)
                 # add file to read filenames to prevent re-reading in case it is not the current day (or end of
                 # previous day)
                 if not filename.endswith(f'{current_day:03}') and not (
@@ -167,7 +167,7 @@ class SurveillanceBot(object):
                 print(f'Could not read file {filename}:', e)
                 continue
             self.dataStream += st_new
-        self.dataStream.merge()
+        self.dataStream.merge(fill_value=np.nan)
 
         # organise data in dictionary with key for each station
         for trace in self.dataStream:
@@ -341,7 +341,8 @@ class SurveillanceBot(object):
             try:
                 st = modify_stream_for_plot(st, parameters=self.parameters)
                 st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
-                annotate_trace_axes(fig, self.parameters, self.verbosity)
+                trace_ylabels(fig, self.parameters, self.verbosity)
+                trace_yticks(fig, self.parameters, self.verbosity)
             except Exception as e:
                 print(f'Could not generate plot for {nwst_id}:')
                 print(traceback.format_exc())
@@ -349,10 +350,22 @@ class SurveillanceBot(object):
                 ax = fig.axes[0]
                 ax.set_title(f'Plot refreshed at (UTC) {UTCDateTime.now().strftime("%Y-%m-%d %H:%M:%S")}. '
                              f'Refreshed hourly or on FAIL status.')
+                for ax in fig.axes:
+                    ax.grid(True, alpha=0.1)
                 fig.savefig(fnout, dpi=150., bbox_inches='tight')
         plt.close(fig)
 
-    def write_html_table(self, default_color='#e6e6e6', default_header_color='#999'):
+    def write_html_table(self, default_color='#e6e6e6', default_header_color='#999', hide_keys_mobile=('other')):
+
+        def get_html_class(status=None, check_key=None):
+            """ helper function for html class if a certain condition is fulfilled """
+            html_class = None
+            if status and status.is_active:
+                html_class = 'blink-bg'
+            if check_key in hide_keys_mobile:
+                html_class = 'hidden-mobile'
+            return html_class
+
         self.check_html_dir()
         fnout = pjoin(self.outpath_html, 'survBot_out.html')
         if not fnout:
@@ -370,7 +383,8 @@ class SurveillanceBot(object):
                     header.insert(-1, key)
                 header_items = [dict(text='Station', color=default_header_color)]
                 for check_key in header:
-                    item = dict(text=check_key, color=default_header_color)
+                    html_class = get_html_class(check_key=check_key)
+                    item = dict(text=check_key, color=default_header_color, html_class=html_class)
                     header_items.append(item)
                 write_html_row(outfile, header_items, html_key='th')
 
@@ -397,8 +411,9 @@ class SurveillanceBot(object):
                                 if not type(message) in [str]:
                                     message = str(message) + deg_str
 
+                            html_class = get_html_class(status=status, check_key=check_key)
                             item = dict(text=str(message), tooltip=str(detailed_message), color=bg_color,
-                                        blink=status.is_active)
+                                        html_class=html_class)
                         elif check_key in self.add_links:
                             value = self.add_links.get(check_key).get('URL')
                             link_text = self.add_links.get(check_key).get('text')
@@ -566,11 +581,25 @@ class StationQC(object):
             if self.verbosity:
                 print('Mail functionality disabled. Return')
             return
+
         mail_params = self.parameters.get('EMAIL')
         if not mail_params:
             if self.verbosity:
                 print('parameter "EMAIL" not set in parameter file. Return')
             return
+
+        stations_blacklist = mail_params.get('stations_blacklist')
+        if stations_blacklist and self.station in stations_blacklist:
+            if self.verbosity:
+                print(f'Station {self.station} listed in blacklist. Return')
+            return
+
+        networks_blacklist = mail_params.get('networks_blacklist')
+        if networks_blacklist and self.network in networks_blacklist:
+            if self.verbosity:
+                print(f'Station {self.station} of network {self.network} listed in blacklist. Return')
+            return
+
         sender = mail_params.get('sender')
         addresses = mail_params.get('addresses')
         server = mail_params.get('mailserver')
@@ -705,9 +734,6 @@ class StationQC(object):
             self.status_ok(key, detailed_message=f'U={(voltage[-1])}V')
             return
 
-        n_overvolt = 0
-        n_undervolt = 0
-
         warn_message = f'Trace {trace.get_id()}:'
         if len(overvolt) > 0:
             # try calculate number of voltage peaks from gaps between indices
@@ -820,8 +846,7 @@ class StationQC(object):
                         self.status_ok(key)
                         continue
                     if volt_lvl > 1:
-                        # try calculate number of voltage peaks from gaps between indices
-                        n_occurrences = len(np.where(np.diff(ind_array) > 1)[0]) + 1
+                        n_occurrences = self.calc_occurrences(ind_array)
                         self.warn(key=key,
                                   detailed_message=f'Trace {trace.get_id()}: '
                                                    f'Found {n_occurrences} occurrence(s) of {volt_lvl}V: {key}: {message}'
@@ -831,6 +856,32 @@ class StationQC(object):
                     # if last_val == current voltage (which is not 1) -> FAIL or last_val < 1: PBox no data
                     if volt_lvl == last_val or (volt_lvl == -1 and last_val < 1):
                         self.error(key, detailed_message=f'Last PowBox voltage state {last_val}V: {message}')
+
+    def calc_occurrences(self, ind_array):
+        # try calculate number of voltage peaks/plateaus from gaps between indices
+        if len(ind_array) == 0:
+            return 0
+        else:
+            # start index at 1 if there are gaps (n_peaks = n_gaps + 1)
+            n_occurrences = 1
+
+        min_samples = self.parameters.get('min_sample')
+        if not min_samples:
+            min_samples = 1
+
+        # calculated differences in index array, diff > 1: gap, diff == 1: within peak/plateau
+        diffs = np.diff(ind_array)
+        gap_start_inds = np.where(np.diff(ind_array) > 1)[0]
+        # iterate over all gaps and check "min_samples" before the gap
+        for gsi in gap_start_inds:
+            # right boundary index of peak (gap index - 1)
+            peak_rb_ind = gsi - 1
+            # left boundary index of peak
+            peak_lb_ind = max([0, peak_rb_ind - min_samples])
+            if all(diffs[peak_lb_ind: peak_rb_ind] == 1):
+                n_occurrences += 1
+
+        return n_occurrences
 
     def get_trace(self, stream, keys):
         if not type(keys) == list:
