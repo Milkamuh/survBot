@@ -581,11 +581,25 @@ class StationQC(object):
             if self.verbosity:
                 print('Mail functionality disabled. Return')
             return
+
         mail_params = self.parameters.get('EMAIL')
         if not mail_params:
             if self.verbosity:
                 print('parameter "EMAIL" not set in parameter file. Return')
             return
+
+        stations_blacklist = mail_params.get('stations_blacklist')
+        if stations_blacklist and self.station in stations_blacklist:
+            if self.verbosity:
+                print(f'Station {self.station} listed in blacklist. Return')
+            return
+
+        networks_blacklist = mail_params.get('networks_blacklist')
+        if networks_blacklist and self.network in networks_blacklist:
+            if self.verbosity:
+                print(f'Station {self.station} of network {self.network} listed in blacklist. Return')
+            return
+
         sender = mail_params.get('sender')
         addresses = mail_params.get('addresses')
         server = mail_params.get('mailserver')

@@ -3,9 +3,9 @@ datapath: "/data/SDS/"                    # SC3 Datapath
 networks: ["1Y", "HA"]                    # select networks, list or str
 stations: "*"                             # select stations, list or str
 locations: "*"                            # select locations, list or str
-channels: ["EX1", "EX2", "EX3", "VEI", "LCQ"]    # Specify SOH channels, currently supported EX[1-3], VEI, LCQ
-stations_blacklist: ["TEST", "EREA"]
-networks_blacklist: []
+channels: ["EX1", "EX2", "EX3", "VEI", "LCQ"]    # Specify SOH channels, currently supported EX[1-3], VEI and LCQ
+stations_blacklist: ["TEST", "EREA"]      # exclude these stations
+networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
 n_track: 300               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
 timespan: 7                # Check data of the recent x days
@@ -60,6 +60,8 @@ EMAIL:
   mailserver: "localhost"
   addresses: ["marcel.paffrath@rub.de", "kasper.fischer@rub.de"]  # list of mail addresses for info mails
   sender: "webmaster@geophysik.ruhr-uni-bochum.de" # mail sender
+  stations_blacklist: ['GR33']                     # do not send emails for specific stations
+  networks_blacklist: []                           # do not send emails for specific network
 
 # names for plotting of the above defined parameter "channels" in the same order
 channel_names: ["Clock Quality (%)", "Temperature (°C)", "230V/12V Status (V)", "Router/Charger State (V)", "Logger Voltage (V)"] # names for plotting (optional)
