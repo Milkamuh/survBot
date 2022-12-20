@@ -10,9 +10,11 @@ def get_bg_color(check_key, status, dt_thresh=None, hex=False):
         bg_color = get_time_delay_color(message, dt_thresh)
     elif check_key == 'temp':
         bg_color = get_temp_color(message)
+    elif check_key == 'mass':
+        bg_color = get_mass_color(message)
     else:
         if status.is_warn:
-            bg_color = get_color('WARNX')(status.count)
+            bg_color = get_warn_color(status.count)
         elif status.is_error:
             bg_color = get_color('FAIL')
         else:
@@ -30,7 +32,6 @@ def get_color(key):
     colors_dict = {'FAIL': (255, 50, 0, 255),
                    'NO DATA': (255, 255, 125, 255),
                    'WARN': (255, 255, 80, 255),
-                   'WARNX': lambda x: (min([255, 200 + x ** 2]), 255, 80, 255),
                    'OK': (125, 255, 125, 255),
                    'undefined': (230, 230, 230, 255)}
     return colors_dict.get(key)
@@ -43,6 +44,18 @@ def get_time_delay_color(dt, dt_thresh):
     elif dt_thresh[0] <= dt < dt_thresh[1]:
         return get_color('WARN')
     return get_color('FAIL')
+
+
+def get_warn_color(count):
+    color = (min([255, 200 + count ** 2]), 255, 80, 255)
+    return color
+
+
+def get_mass_color(message):
+    # can change this to something else if wanted. This way it always returns get_color (without warn count)
+    if isinstance(message, (float, int)):
+        return get_color('OK')
+    return get_color(message)
 
 
 def get_temp_color(temp, vmin=-10, vmax=60, cmap='coolwarm'):
@@ -60,9 +73,8 @@ def modify_stream_for_plot(st, parameters):
     ch_units = parameters.get('CHANNEL_UNITS')
     ch_transf = parameters.get('CHANNEL_TRANSFORM')
 
-    # if either of both are defined make copy
-    if ch_units or ch_transf:
-        st = st.copy()
+    # make a copy
+    st = st.copy()
 
     # modify trace for plotting by multiplying unit factor (e.g. 1e-3 mV to V)
     if ch_units:
@@ -71,6 +83,7 @@ def modify_stream_for_plot(st, parameters):
             unit_factor = ch_units.get(channel)
             if unit_factor:
                 tr.data = tr.data * float(unit_factor)
+
     # modify trace for plotting by other arithmetic expressions
     if ch_transf:
         for tr in st:
@@ -78,6 +91,10 @@ def modify_stream_for_plot(st, parameters):
             transf = ch_transf.get(channel)
             if transf:
                 tr.data = transform_trace(tr.data, transf)
+
+    # change channel IDs to prevent re-sorting in obspy routine
+    for index, trace in enumerate(st):
+        trace.id = f'trace {index + 1}: {trace.id}'
 
     return st
 
@@ -142,4 +159,4 @@ def trace_yticks(fig, parameters, verbosity=0):
 
         yticks = list(range(ymin, ymax + step, step))
         ax.set_yticks(yticks)
-        ax.set_ylim(ymin - step, ymax + step)
+        ax.set_ylim(ymin - 0.33 * step, ymax + 0.33 * step)

@@ -61,7 +61,7 @@ def fancy_timestr(dt, thresh=600, modif='+'):
 
 class SurveillanceBot(object):
     def __init__(self, parameter_path, outpath_html=None):
-        self.keys = ['last active', '230V', '12V', 'router', 'charger', 'voltage', 'temp', 'other']
+        self.keys = ['last active', '230V', '12V', 'router', 'charger', 'voltage', 'mass', 'temp', 'other']
         self.parameter_path = parameter_path
         self.update_parameters()
         self.starttime = UTCDateTime()
@@ -242,7 +242,7 @@ class SurveillanceBot(object):
     def get_station_delay(self, nwst_id):
         """ try to get station delay from SDS archive using client"""
         locations = ['', '0', '00']
-        channels = ['HHZ', 'HHE', 'HHN', 'VEI', 'EX1', 'EX2', 'EX3']
+        channels = ['HHZ', 'HHE', 'HHN'] + self.parameters.get('channels')
         network, station = nwst_id.split('.')[:2]
 
         times = []
@@ -685,6 +685,7 @@ class StationQC(object):
         self.pb_temp_analysis()
         self.pb_power_analysis()
         self.pb_rout_charge_analysis()
+        self.mass_analysis()
 
     def return_print_analysis(self):
         items = [self.nwst_id]
@@ -718,7 +719,8 @@ class StationQC(object):
         key = 'voltage'
         st = self.stream.select(channel=channel)
         trace = self.get_trace(st, key)
-        if not trace: return
+        if not trace:
+            return
         voltage = trace.data * 1e-3
         low_volt = self.parameters.get('THRESHOLDS').get('low_volt')
         high_volt = self.parameters.get('THRESHOLDS').get('high_volt')
@@ -756,14 +758,15 @@ class StationQC(object):
         key = 'temp'
         st = self.stream.select(channel=channel)
         trace = self.get_trace(st, key)
-        if not trace: return
+        if not trace:
+            return
         voltage = trace.data * 1e-6
         thresholds = self.parameters.get('THRESHOLDS')
         temp = 20. * voltage - 20
         # average temp
         timespan = min([self.parameters.get('timespan') * 24 * 3600, int(len(temp) / trace.stats.sampling_rate)])
         nsamp_av = int(trace.stats.sampling_rate) * timespan
-        av_temp_str = str(round(np.mean(temp[-nsamp_av:]), 1)) + deg_str
+        av_temp_str = str(round(np.nanmean(temp[-nsamp_av:]), 1)) + deg_str
         # dt of average
         dt_t_str = str(timedelta(seconds=int(timespan))).replace(', 0:00:00', '')
         # current temp
@@ -771,7 +774,7 @@ class StationQC(object):
         if self.verbosity > 1:
             self.print(40 * '-')
             self.print('Performing PowBox temperature check (EX1)', flush=False)
-            self.print(f'Average temperature at {np.mean(temp)}\N{DEGREE SIGN}', flush=False)
+            self.print(f'Average temperature at {np.nanmean(temp)}\N{DEGREE SIGN}', flush=False)
             self.print(f'Peak temperature at {max(temp)}\N{DEGREE SIGN}', flush=False)
             self.print(f'Min temperature at {min(temp)}\N{DEGREE SIGN}', flush=False)
         max_temp = thresholds.get('max_temp')
@@ -786,6 +789,52 @@ class StationQC(object):
             self.status_ok(key,
                            status_message=cur_temp,
                            detailed_message=f'Average temperature of last {dt_t_str}: {av_temp_str}')
+
+    def mass_analysis(self, channels=('VM1', 'VM2', 'VM3'), n_samp_mean=10):
+        """ Analyse datalogger mass channels. """
+        key = 'mass'
+
+        # build stream with all channels
+        st = Stream()
+        for channel in channels:
+            st += self.stream.select(channel=channel).copy()
+        st.merge()
+
+        # return if there are no three components
+        if not len(st) == 3:
+            return
+
+        # correct for channel unit
+        for trace in st:
+            trace.data = trace.data * 1e-6  # hardcoded, change this?
+
+        # calculate average of absolute maximum of mass offset of last n_samp_mean
+        last_values = np.array([trace.data[-n_samp_mean:] for trace in st])
+        last_val_mean = np.nanmean(last_values, axis=1)
+        common_highest_val = np.nanmax(abs(last_val_mean))
+        common_highest_val = round(common_highest_val, 1)
+
+        # get thresholds for WARN (max_vm1) and FAIL (max_vm2)
+        thresholds = self.parameters.get('THRESHOLDS')
+        max_vm = thresholds.get('max_vm')
+        if not max_vm:
+            return
+        max_vm1, max_vm2 = max_vm
+
+        # change status depending on common_highest_val
+        if common_highest_val < max_vm1:
+            self.status_ok(key, detailed_message=f'{common_highest_val}V')
+        elif max_vm1 <= common_highest_val < max_vm2:
+            self.warn(key=key,
+                      detailed_message=f'Warning raised for mass centering. Highest val {common_highest_val}V', )
+        else:
+            self.error(key=key,
+                      detailed_message=f'Fail status for mass centering. Highest val {common_highest_val}V',)
+
+        if self.verbosity > 1:
+            self.print(40 * '-')
+            self.print('Performing mass position check', flush=False)
+            self.print(f'Average mass position at {common_highest_val}', flush=False)
 
     def pb_power_analysis(self, channel='EX2', pb_dict_key='pb_SOH2'):
         """ Analyse EX2 channel of PowBox """
@@ -1056,6 +1105,23 @@ class StatusOther(Status):
             detailed_message += dm
 
         return message, detailed_message
+
+
+def common_mass_trace(st):
+    traces = st.traces
+    if not len(traces) == 3:
+        return
+    check_keys = ['sampling_rate', 'starttime', 'endtime', 'npts']
+    # check if values of the above keys are identical for all traces
+    for c_key in check_keys:
+        if not traces[0].stats.get(c_key) == traces[1].stats.get(c_key) == traces[2].stats.get(c_key):
+            return
+    max_1_2 = np.fmax(abs(traces[0]), abs(traces[1]))
+    abs_max = np.fmax(max_1_2, abs(traces[2]))
+    return_trace = traces[0].copy()
+    return_trace.data = abs_max
+    return return_trace
+
 
 
 if __name__ == '__main__':
