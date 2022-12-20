@@ -3,7 +3,7 @@ datapath: "/data/SDS/"                    # SC3 Datapath
 networks: ["1Y", "HA"]                    # select networks, list or str
 stations: "*"                             # select stations, list or str
 locations: "*"                            # select locations, list or str
-channels: ["EX1", "EX2", "EX3", "VEI", "LCQ"]    # Specify SOH channels, currently supported EX[1-3], VEI, LCQ
+channels: ["EX1", "EX2", "EX3", "VEI", "LCQ"]    # Specify SOH channels, currently supported EX[1-3], VEI and LCQ
 stations_blacklist: ["TEST", "EREA"]      # exclude these stations
 networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
