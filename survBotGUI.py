@@ -34,7 +34,7 @@ from obspy import UTCDateTime
 
 from survBot import SurveillanceBot
 from write_utils import *
-from utils import get_bg_color, modify_stream_for_plot, trace_ylabels, trace_yticks
+from utils import get_bg_color, modify_stream_for_plot, trace_yticks, trace_thresholds
 
 try:
     from rest_api.utils import get_station_iccid
@@ -316,8 +316,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.plot_widget.setWindowTitle(nwst_id)
             st = modify_stream_for_plot(st, parameters=self.parameters)
             st.plot(equal_scale=False, method='full', block=False, fig=self.plot_widget.canvas.fig)
-            trace_ylabels(fig=self.plot_widget.canvas.fig, parameters=self.parameters)
+            # trace_ylabels(fig=self.plot_widget.canvas.fig, parameters=self.parameters)
             trace_yticks(fig=self.plot_widget.canvas.fig, parameters=self.parameters)
+            trace_thresholds(fig=self.plot_widget.canvas.fig, parameters=self.parameters)
             self.plot_widget.show()
 
     def notification(self, text):

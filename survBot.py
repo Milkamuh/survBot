@@ -19,7 +19,7 @@ from obspy.clients.filesystem.sds import Client
 
 from write_utils import write_html_text, write_html_row, write_html_footer, write_html_header, get_print_title_str, \
     init_html_table, finish_html_table
-from utils import get_bg_color, modify_stream_for_plot, trace_ylabels, trace_yticks
+from utils import get_bg_color, modify_stream_for_plot, trace_yticks, trace_thresholds
 
 try:
     import smtplib
@@ -68,7 +68,7 @@ def fancy_timestr(dt, thresh=600, modif='+'):
 
 class SurveillanceBot(object):
     def __init__(self, parameter_path, outpath_html=None):
-        self.keys = ['last active', '230V', '12V', 'router', 'charger', 'voltage', 'mass', 'clock', 'temp', 'other']
+        self.keys = ['last active', '230V', '12V', 'router', 'charger', 'voltage', 'mass', 'temp', 'other']
         self.parameter_path = parameter_path
         self.update_parameters()
         self.starttime = UTCDateTime()
@@ -92,6 +92,8 @@ class SurveillanceBot(object):
 
     def update_parameters(self):
         self.parameters = read_yaml(self.parameter_path)
+        # add channels to list in parameters dicitonary
+        self.parameters['channels'] = list(self.parameters.get('CHANNELS').keys())
         self.reread_parameters = self.parameters.get('reread_parameters')
         self.dt_thresh = [int(val) for val in self.parameters.get('dt_thresh')]
         self.verbosity = self.parameters.get('verbosity')
@@ -348,8 +350,9 @@ class SurveillanceBot(object):
             try:
                 st = modify_stream_for_plot(st, parameters=self.parameters)
                 st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
-                trace_ylabels(fig, self.parameters, self.verbosity)
+                # trace_ylabels(fig, self.parameters, self.verbosity)
                 trace_yticks(fig, self.parameters, self.verbosity)
+                trace_thresholds(fig, self.parameters, self.verbosity)
             except Exception as e:
                 print(f'Could not generate plot for {nwst_id}:')
                 print(traceback.format_exc())
@@ -440,6 +443,9 @@ class SurveillanceBot(object):
         except Exception as e:
             print(f'Could not write HTML table to {fnout}:')
             print(traceback.format_exc())
+
+        if self.verbosity:
+            print(f'Wrote html table to {fnout}')
 
     def update_status_message(self):
         timespan = timedelta(seconds=int(self.parameters.get('timespan') * 24 * 3600))
@@ -693,7 +699,7 @@ class StationQC(object):
         self.pb_power_analysis()
         self.pb_rout_charge_analysis()
         self.mass_analysis()
-        self.clock_quality_analysis()
+        #self.clock_quality_analysis()
 
     def return_print_analysis(self):
         items = [self.nwst_id]
@@ -860,17 +866,17 @@ class StationQC(object):
         common_highest_val = np.nanmax(abs(last_val_mean))
         common_highest_val = round(common_highest_val, 1)
 
-        # get thresholds for WARN (max_vm1) and FAIL (max_vm2)
+        # get thresholds for WARN (max_vm_warn) and FAIL (max_vm_fail)
         thresholds = self.parameters.get('THRESHOLDS')
-        max_vm = thresholds.get('max_vm')
-        if not max_vm:
+        max_vm_warn = thresholds.get('max_vm_warn')
+        max_vm_fail = thresholds.get('max_vm_fail')
+        if not max_vm_warn or not max_vm_fail:
             return
-        max_vm1, max_vm2 = max_vm
 
         # change status depending on common_highest_val
-        if common_highest_val < max_vm1:
+        if common_highest_val < max_vm_warn:
             self.status_ok(key, detailed_message=f'{common_highest_val}V')
-        elif max_vm1 <= common_highest_val < max_vm2:
+        elif max_vm_warn <= common_highest_val < max_vm_fail:
             self.warn(key=key,
                       detailed_message=f'Warning raised for mass centering. Highest val {common_highest_val}V', )
         else:
