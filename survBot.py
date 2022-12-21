@@ -574,8 +574,11 @@ class StationQC(object):
         In all other cases return False.
         This also prevents sending status (e.g. mail) in case of program startup
         """
-        if n_errors is not None:
-            n_errors = self.parameters.get('n_track') + 1
+        if n_errors is None:
+            n_errors = self.parameters.get('n_track')
+
+        # +1 to check whether n_errors +1 was no error (error is new)
+        n_errors += 1
 
         previous_errors = self.status_track.get(key)
         # only if error list is filled n_track times
@@ -878,10 +881,10 @@ class StationQC(object):
             self.status_ok(key, detailed_message=f'{common_highest_val}V')
         elif max_vm_warn <= common_highest_val < max_vm_fail:
             self.warn(key=key,
-                      detailed_message=f'Warning raised for mass centering. Highest val {common_highest_val}V', )
+                      detailed_message=f'Warning raised for mass centering. Highest val (abs) {common_highest_val}V', )
         else:
             self.error(key=key,
-                      detailed_message=f'Fail status for mass centering. Highest val {common_highest_val}V',)
+                      detailed_message=f'Fail status for mass centering. Highest val (abs) {common_highest_val}V',)
 
         if self.verbosity > 1:
             self.print(40 * '-')
