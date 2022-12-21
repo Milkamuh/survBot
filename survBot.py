@@ -36,9 +36,16 @@ CLR = "\x1B[0K"
 deg_str = '\N{DEGREE SIGN}C'
 
 
-def read_yaml(file_path):
-    with open(file_path, "r") as f:
-        return yaml.safe_load(f)
+def read_yaml(file_path, n_read=3):
+    for index in range(n_read):
+        try:
+            with open(file_path, "r") as f:
+                params = yaml.safe_load(f)
+        except Exception as e:
+            print(f'Could not read parameters file: {e}.\nWill try again {n_read - index - 1} time(s).')
+            time.sleep(10)
+            continue
+        return params
 
 
 def nsl_from_id(nwst_id):
