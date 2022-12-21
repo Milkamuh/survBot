@@ -62,7 +62,7 @@ THRESHOLDS:
 CHANNELS:
   EX1:
     unit: 1e-6
-    name: "Temperature (°C)"
+    name: "PowBox Temperature (°C)"
     ticks: [-10, 50, 10]
     transform:
       - ["*", 20]
@@ -70,40 +70,40 @@ CHANNELS:
     warn: "max_temp"
   EX2:
     unit: 1e-6
-    name: "230V/12V (V)"
+    name: "PowBox 230V/12V (V)"
     ticks: [1, 5, 1]
     warn: [2, 3, 4, 4.5, 5]
   EX3:
     unit: 1e-6
-    name: "Rout/Charge (V)"
+    name: "PowBox Router/Charger (V)"
     ticks: [1, 5, 1]
     warn: [2, 2.5, 3, 4, 5]
   VEI:
     unit: 1e-3
-    name: "Logger (V)"
+    name: "Datalogger (V)"
     ticks: [9, 15, 1]
     warn: ["low_volt", "high_volt"]
     fail: 10.5
   VM1:
     unit: 1e-6
-    name: "Mass 1 (V)"
+    name: "Mass position W (V)"
     ticks: [-2.5, 2.5, 1]
     warn: [-1.5, 1.5]
     fail: [-2.5, 2.5]
   VM2:
     unit: 1e-6
-    name: "Mass 2 (V)"
+    name: "Mass position V (V)"
     ticks: [-2.5, 2.5, 1]
     warn: [-1.5, 1.5]
     fail: [-2.5, 2.5]
   VM3:
     unit: 1e-6
-    name: "Mass 3 (V)"
+    name: "Mass position U (V)"
     ticks: [-2.5, 2.5, 1]
     warn: [-1.5, 1.5]
     fail: [-2.5, 2.5]
   LCQ:
-    name: "Clock Q (%)"
+    name: "Clock quality (%)"
     ticks: [0, 100, 20]
     warn: "clockquality_warn"
     fail: "clockquality_fail"

@@ -110,7 +110,7 @@ def modify_stream_for_plot(input_stream, parameters):
 
         # modify trace id to maintain plotting order
         name = channel_dict.get('name')
-        tr.id = f'trace {index + 1}: {name} - {tr.id}'
+        tr.id = f'{index + 1}: {name} - {tr.id}'
 
         st.append(tr)
 
@@ -139,7 +139,7 @@ def transform_trace(data, transf):
     return data
 
 
-def trace_ylabels(fig, parameters, verbosity=0):
+def set_axis_ylabels(fig, parameters, verbosity=0):
     """
     Adds channel names to y-axis if defined in parameters.
     """
@@ -155,7 +155,16 @@ def trace_ylabels(fig, parameters, verbosity=0):
             ax.set_ylabel(channel_name)
 
 
-def trace_yticks(fig, parameters, verbosity=0):
+def set_axis_color(fig, color='grey'):
+    """
+    Set all axes of figure to specific color
+    """
+    for ax in fig.axes:
+        for key in ['bottom', 'top', 'right', 'left']:
+            ax.spines[key].set_color(color)
+
+
+def set_axis_yticks(fig, parameters, verbosity=0):
     """
     Adds channel names to y-axis if defined in parameters.
     """
@@ -176,7 +185,7 @@ def trace_yticks(fig, parameters, verbosity=0):
         ax.set_ylim(ymin - 0.33 * step, ymax + 0.33 * step)
 
 
-def trace_thresholds(fig, parameters, verbosity=0):
+def plot_axis_thresholds(fig, parameters, verbosity=0):
     """
     Adds channel thresholds (warn, fail) to y-axis if defined in parameters.
     """

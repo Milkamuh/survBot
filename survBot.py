@@ -19,7 +19,7 @@ from obspy.clients.filesystem.sds import Client
 
 from write_utils import write_html_text, write_html_row, write_html_footer, write_html_header, get_print_title_str, \
     init_html_table, finish_html_table
-from utils import get_bg_color, modify_stream_for_plot, trace_yticks, trace_thresholds
+from utils import get_bg_color, modify_stream_for_plot, set_axis_yticks, set_axis_color, plot_axis_thresholds
 
 try:
     import smtplib
@@ -350,9 +350,10 @@ class SurveillanceBot(object):
             try:
                 st = modify_stream_for_plot(st, parameters=self.parameters)
                 st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
-                # trace_ylabels(fig, self.parameters, self.verbosity)
-                trace_yticks(fig, self.parameters, self.verbosity)
-                trace_thresholds(fig, self.parameters, self.verbosity)
+                # set_axis_ylabels(fig, self.parameters, self.verbosity)
+                set_axis_yticks(fig, self.parameters, self.verbosity)
+                set_axis_color(fig)
+                plot_axis_thresholds(fig, self.parameters, self.verbosity)
             except Exception as e:
                 print(f'Could not generate plot for {nwst_id}:')
                 print(traceback.format_exc())
