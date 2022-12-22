@@ -750,29 +750,29 @@ class StationQC(object):
         trace = self.get_trace(st, key)
         if not trace:
             return
-        clockQuality = trace.data
-        clockQuality_warn_level = self.parameters.get('THRESHOLDS').get('clockquality_warn')
-        clockQuality_fail_level = self.parameters.get('THRESHOLDS').get('clockquality_fail')
+        clock_quality = trace.data
+        clock_quality_warn_level = self.parameters.get('THRESHOLDS').get('clockquality_warn')
+        clock_quality_fail_level = self.parameters.get('THRESHOLDS').get('clockquality_fail')
 
         if self.verbosity > 1:
             self.print(40 * '-')
             self.print('Performing Clock Quality check', flush=False)
 
-        clockQuality_warn = np.where(clockQuality < clockQuality_warn_level)[0]
-        clockQuality_fail = np.where(clockQuality < clockQuality_fail_level)[0]
+        clockQuality_warn = np.where(clock_quality < clock_quality_warn_level)[0]
+        clockQuality_fail = np.where(clock_quality < clock_quality_fail_level)[0]
 
         if len(clockQuality_warn) == 0 and len(clockQuality_fail) == 0:
-            self.status_ok(key, detailed_message=f'ClockQuality={(clockQuality[-1])}')
+            self.status_ok(key, detailed_message=f'ClockQuality={(clock_quality[-1])}')
             return
 
-        last_val_average = np.nanmean(clockQuality[-n_sample_average:])
+        last_val_average = np.nanmean(clock_quality[-n_sample_average:])
 
         # keep OK status if there are only minor warnings (lower warn level)
         warn_message = f'Trace {trace.get_id()}:'
         if len(clockQuality_warn) > 0:
             # try calculate number of warn peaks from gaps between indices
             n_qc_warn = self.calc_occurrences(clockQuality_warn)
-            detailed_message = warn_message + f' {n_qc_warn}x Clock quality less then {clockQuality_warn_level}%' \
+            detailed_message = warn_message + f' {n_qc_warn}x Clock quality less then {clock_quality_warn_level}%' \
                                + self.get_last_occurrence_timestring(trace, clockQuality_warn)
             self.status_ok(key, detailed_message=detailed_message)
 
@@ -780,14 +780,14 @@ class StationQC(object):
         if len(clockQuality_fail) > 0:
             # try calculate number of fail peaks from gaps between indices
             n_qc_fail = self.calc_occurrences(clockQuality_fail)
-            detailed_message = warn_message + f' {n_qc_fail}x Clock quality less then {clockQuality_fail_level}%' \
+            detailed_message = warn_message + f' {n_qc_fail}x Clock quality less then {clock_quality_fail_level}%' \
                                + self.get_last_occurrence_timestring(trace, clockQuality_fail)
             self.warn(key, detailed_message=detailed_message, count=n_qc_fail,
                       last_occurrence=self.get_last_occurrence(trace, clockQuality_fail))
 
         # set FAIL state if last value is less than fail level
-        if last_val_average < clockQuality_fail_level:
-            self.error(key, detailed_message=f'ClockQuality={(clockQuality[-1])}')
+        if last_val_average < clock_quality_fail_level:
+            self.error(key, detailed_message=f'ClockQuality={(clock_quality[-1])}')
 
     def voltage_analysis(self, channel='VEI'):
         """ Analyse voltage channel for over/undervoltage """
