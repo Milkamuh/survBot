@@ -68,7 +68,7 @@ def fancy_timestr(dt, thresh=600, modif='+'):
 
 class SurveillanceBot(object):
     def __init__(self, parameter_path, outpath_html=None):
-        self.keys = ['last active', '230V', '12V', 'router', 'charger', 'voltage', 'mass', 'temp', 'other']
+        self.keys = ['last active', '230V', '12V', 'router', 'charger', 'voltage', 'mass', 'clock', 'temp', 'other']
         self.parameter_path = parameter_path
         self.update_parameters()
         self.starttime = UTCDateTime()
@@ -703,7 +703,7 @@ class StationQC(object):
         self.pb_power_analysis()
         self.pb_rout_charge_analysis()
         self.mass_analysis()
-        #self.clock_quality_analysis()
+        self.clock_quality_analysis()
 
     def return_print_analysis(self):
         items = [self.nwst_id]
@@ -732,12 +732,13 @@ class StationQC(object):
     def get_last_occurrence(self, trace, indices):
         return self.get_time(trace, indices[-1])
 
-    def clock_quality_analysis(self, channel='LCQ'):
+    def clock_quality_analysis(self, channel='LCQ', n_sample_average=10):
         """ Analyse clock quality """
         key = 'clock'
         st = self.stream.select(channel=channel)
         trace = self.get_trace(st, key)
-        if not trace: return
+        if not trace:
+            return
         clockQuality = trace.data
         clockQuality_warn_level = self.parameters.get('THRESHOLDS').get('clockquality_warn')
         clockQuality_fail_level = self.parameters.get('THRESHOLDS').get('clockquality_fail')
@@ -753,22 +754,29 @@ class StationQC(object):
             self.status_ok(key, detailed_message=f'ClockQuality={(clockQuality[-1])}')
             return
 
+        last_val_average = np.nanmean(clockQuality[-n_sample_average:])
+
+        # keep OK status if there are only minor warnings (lower warn level)
         warn_message = f'Trace {trace.get_id()}:'
         if len(clockQuality_warn) > 0:
             # try calculate number of warn peaks from gaps between indices
             n_qc_warn = self.calc_occurrences(clockQuality_warn)
-            detailed_message = warn_message + f' {n_qc_warn}x Qlock Quality less then {clockQuality_warn_level}%' \
+            detailed_message = warn_message + f' {n_qc_warn}x Clock quality less then {clockQuality_warn_level}%' \
                                + self.get_last_occurrence_timestring(trace, clockQuality_warn)
-            self.warn(key, detailed_message=detailed_message, count=n_qc_warn,
-                      last_occurrence=self.get_last_occurrence(trace, clockQuality_warn))
+            self.status_ok(key, detailed_message=detailed_message)
 
+        # set WARN status for sever warnings in the past
         if len(clockQuality_fail) > 0:
             # try calculate number of fail peaks from gaps between indices
             n_qc_fail = self.calc_occurrences(clockQuality_fail)
-            detailed_message = warn_message + f' {n_qc_fail}x Qlock Quality less then {clockQuality_fail_level}%' \
+            detailed_message = warn_message + f' {n_qc_fail}x Clock quality less then {clockQuality_fail_level}%' \
                                + self.get_last_occurrence_timestring(trace, clockQuality_fail)
-            self.error(key, detailed_message=detailed_message, count=n_qc_fail,
+            self.warn(key, detailed_message=detailed_message, count=n_qc_fail,
                       last_occurrence=self.get_last_occurrence(trace, clockQuality_fail))
+
+        # set FAIL state if last value is less than fail level
+        if last_val_average < clockQuality_fail_level:
+            self.error(key, detailed_message=f'ClockQuality={(clockQuality[-1])}')
 
     def voltage_analysis(self, channel='VEI'):
         """ Analyse voltage channel for over/undervoltage """
@@ -862,7 +870,7 @@ class StationQC(object):
 
         # correct for channel unit
         for trace in st:
-            trace.data = trace.data * 1e-6  # hardcoded, change this?
+            trace.data = trace.data * 1e-6  # TODO: Here and elsewhere: hardcoded, change this?
 
         # calculate average of absolute maximum of mass offset of last n_samp_mean
         last_values = np.array([trace.data[-n_samp_mean:] for trace in st])
