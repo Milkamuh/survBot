@@ -469,12 +469,14 @@ class SurveillanceBot(object):
 
 
 class StationQC(object):
-    def __init__(self, parent, stream, nsl, parameters, keys, starttime, verbosity, print_func, status_track={}):
+    def __init__(self, parent, stream, nsl, parameters, keys, starttime, verbosity, print_func, status_track=None):
         """
         Station Quality Check class.
         :param nsl: dictionary containing network, station and location (key: str)
         :param parameters: parameters dictionary from parameters.yaml file
         """
+        if status_track is None:
+            status_track = {}
         self.parent = parent
         self.stream = stream
         self.nsl = nsl
