@@ -721,6 +721,15 @@ class StationQC(object):
     def return_analysis(self):
         return self.status_dict
 
+    def get_unit_factor(self, channel):
+        """ Get channel multiplier for unit from parameters. If none is specified return 1 """
+        channel_params = self.parameters.get('CHANNELS').get(channel)
+        if channel_params:
+            multiplier = channel_params.get('unit')
+            if multiplier:
+                return float(multiplier)
+        return 1
+
     def get_last_occurrence_timestring(self, trace, indices):
         """ returns a nicely formatted string of the timedelta since program starttime and occurrence and abs time"""
         last_occur = self.get_last_occurrence(trace, indices)
@@ -765,7 +774,7 @@ class StationQC(object):
                                + self.get_last_occurrence_timestring(trace, clockQuality_warn)
             self.status_ok(key, detailed_message=detailed_message)
 
-        # set WARN status for sever warnings in the past
+        # set WARN status for severe warnings in the past
         if len(clockQuality_fail) > 0:
             # try calculate number of fail peaks from gaps between indices
             n_qc_fail = self.calc_occurrences(clockQuality_fail)
@@ -785,7 +794,7 @@ class StationQC(object):
         trace = self.get_trace(st, key)
         if not trace:
             return
-        voltage = trace.data * 1e-3
+        voltage = trace.data * self.get_unit_factor(channel)
         low_volt = self.parameters.get('THRESHOLDS').get('low_volt')
         high_volt = self.parameters.get('THRESHOLDS').get('high_volt')
 
@@ -824,7 +833,7 @@ class StationQC(object):
         trace = self.get_trace(st, key)
         if not trace:
             return
-        voltage = trace.data * 1e-6
+        voltage = trace.data * self.get_unit_factor(channel)
         thresholds = self.parameters.get('THRESHOLDS')
         temp = 20. * voltage - 20
         # average temp
@@ -870,7 +879,7 @@ class StationQC(object):
 
         # correct for channel unit
         for trace in st:
-            trace.data = trace.data * 1e-6  # TODO: Here and elsewhere: hardcoded, change this?
+            trace.data = trace.data * self.get_unit_factor(trace.stats.channel)
 
         # calculate average of absolute maximum of mass offset of last n_samp_mean
         last_values = np.array([trace.data[-n_samp_mean:] for trace in st])
@@ -908,7 +917,7 @@ class StationQC(object):
         if not trace:
             return
 
-        voltage = trace.data * 1e-6
+        voltage = trace.data * self.get_unit_factor(channel)
         if self.verbosity > 1:
             self.print(40 * '-')
             self.print('Performing PowBox 12V/230V check (EX2)', flush=False)
@@ -931,7 +940,7 @@ class StationQC(object):
         if not trace:
             return
 
-        voltage = trace.data * 1e-6
+        voltage = trace.data * self.get_unit_factor(channel)
         if self.verbosity > 1:
             self.print(40 * '-')
             self.print('Performing PowBox Router/Charger check (EX3)', flush=False)
