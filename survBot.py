@@ -68,7 +68,8 @@ def fancy_timestr(dt, thresh=600, modif='+'):
 
 class SurveillanceBot(object):
     def __init__(self, parameter_path, outpath_html=None):
-        self.keys = ['last active', '230V', '12V', 'router', 'charger', 'voltage', 'mass', 'clock', 'temp', 'other']
+        self.keys = ['last active', '230V', '12V', 'router', 'charger', 'voltage', 'mass', 'clock', 'gaps', 'temp',
+                     'other']
         self.parameter_path = parameter_path
         self.update_parameters()
         self.starttime = UTCDateTime()
@@ -76,6 +77,7 @@ class SurveillanceBot(object):
         self.current_day = self.starttime.julday
         self.outpath_html = outpath_html
         self.filenames = []
+        self.filenames_wf_data = []
         self.filenames_read = []
         self.station_list = []
         self.analysis_print_list = []
@@ -83,6 +85,7 @@ class SurveillanceBot(object):
         self.status_track = {}
         self.dataStream = Stream()
         self.data = {}
+        self.gaps = []
         self.print_count = 0
         self.status_message = ''
         self.html_fig_dir = 'figures'
@@ -92,8 +95,12 @@ class SurveillanceBot(object):
 
     def update_parameters(self):
         self.parameters = read_yaml(self.parameter_path)
-        # add channels to list in parameters dicitonary
-        self.parameters['channels'] = list(self.parameters.get('CHANNELS').keys())
+        # add channels to list in parameters dictionary, also add data channels
+        channels = list(self.parameters.get('CHANNELS').keys())
+        for channel in self.parameters.get('data_channels'):
+            if not channel in channels:
+                channels.append(channel)
+        self.parameters['channels'] = channels
         self.reread_parameters = self.parameters.get('reread_parameters')
         self.dt_thresh = [int(val) for val in self.parameters.get('dt_thresh')]
         self.verbosity = self.parameters.get('verbosity')
@@ -129,18 +136,25 @@ class SurveillanceBot(object):
 
     def get_filenames(self):
         self.filenames = []
+        self.filenames_wf_data = []
         time_now = UTCDateTime()
         t1 = time_now - self.parameters.get('timespan') * 24 * 3600
         networks = self.parameters.get('networks')
         stations = self.parameters.get('stations')
         locations = self.parameters.get('locations')
         channels = self.parameters.get('channels')
+        channels_wf_data = self.parameters.get('data_channels')
         for network in networks:
             for station in stations:
                 for location in locations:
                     for channel in channels:
-                        self.filenames += list(self.cl._get_filenames(network, station, location, channel,
-                                                                      starttime=t1, endtime=time_now))
+                        fnames = list(self.cl._get_filenames(network, station, location, channel,
+                                                             starttime=t1, endtime=time_now))
+                        self.filenames += fnames
+
+                        # keep track of filenames with wf data (only read headers later)
+                        if channel in channels_wf_data:
+                            self.filenames_wf_data += fnames
 
     def read_data(self, re_read_at_hour=1, daily_overlap=2):
         '''
@@ -166,7 +180,11 @@ class SurveillanceBot(object):
             if filename in self.filenames_read:
                 continue
             try:
-                st_new = read(filename, dtype=float)
+                # read only header of wf_data
+                if filename in self.filenames_wf_data:
+                    st_new = read(filename, headonly=True)
+                else:
+                    st_new = read(filename, dtype=float)
                 # add file to read filenames to prevent re-reading in case it is not the current day (or end of
                 # previous day)
                 if not filename.endswith(f'{current_day:03}') and not (
@@ -176,7 +194,8 @@ class SurveillanceBot(object):
                 print(f'Could not read file {filename}:', e)
                 continue
             self.dataStream += st_new
-        self.dataStream.merge(fill_value=np.nan)
+        self.gaps = self.dataStream.get_gaps(min_gap=self.parameters['THRESHOLDS'].get('min_gap'))
+        self.dataStream.merge()
 
         # organise data in dictionary with key for each station
         for trace in self.dataStream:
@@ -251,7 +270,7 @@ class SurveillanceBot(object):
     def get_station_delay(self, nwst_id):
         """ try to get station delay from SDS archive using client"""
         locations = ['', '0', '00']
-        channels = ['HHZ', 'HHE', 'HHN'] + self.parameters.get('channels')
+        channels = self.parameters.get('channels') + self.parameters.get('data_channels')
         network, station = nwst_id.split('.')[:2]
 
         times = []
@@ -706,6 +725,7 @@ class StationQC(object):
         self.pb_rout_charge_analysis()
         self.mass_analysis()
         self.clock_quality_analysis()
+        self.gaps_analysis()
 
     def return_print_analysis(self):
         items = [self.nwst_id]
@@ -980,6 +1000,26 @@ class StationQC(object):
                     # if last_val == current voltage (which is not 1) -> FAIL or last_val < 1: PBox no data
                     if volt_lvl == last_val or (volt_lvl == -1 and last_val < 1):
                         self.error(key, detailed_message=f'Last PowBox voltage state {last_val}V: {message}')
+
+    def gaps_analysis(self, key='gaps'):
+        """ return gaps of a given nwst_id """
+
+        gaps = []
+        for gap_list in self.parent.gaps:
+            nw_gap, st_gap = gap_list[:2]
+            if nw_gap == self.network and st_gap == self.station:
+                gaps.append(gap_list)
+
+        if not gaps:
+            self.status_ok(key=key)
+            return
+
+        detailed_message = ''
+        for gap_list in gaps:
+            text = '{}.{}.{}.{}: last sample - {}, next sample - {}, delta {}, samples {}\n'.format(*gap_list)
+            detailed_message += text
+
+        self.warn(key=key, detailed_message=detailed_message, count=len(gaps))
 
     def calc_occurrences(self, ind_array):
         # try calculate number of voltage peaks/plateaus from gaps between indices

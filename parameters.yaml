@@ -44,8 +44,9 @@ THRESHOLDS:
   unclassified: 5              # min voltage samples not classified for warning
   max_vm_warn: 1.5             # threshold for mass offset (warn), fail)
   max_vm_fail: 2.5             # threshold for mass offset (warn), fail)
-  clockquality_warn: 90        # clock quality ranges from 0 % to 100 % with 100 % being the best level
-  clockquality_fail: 70
+  clockquality_warn: 90        # warn level - clock quality ranges from 0 % to 100 % with 100 % being the best level
+  clockquality_fail: 70        # fail level
+  min_gap: 0.1                 # minimum for gap declaration, should be > 0 [s]
 
 
 # ---------------------------------- Specification of input channels ---------------------------------------------------
@@ -107,6 +108,9 @@ CHANNELS:
     ticks: [0, 100, 20]
     warn: "clockquality_warn"
     fail: "clockquality_fail"
+
+# specify data channels (can be additional to the above). From these channels only headers will be read
+data_channels: ["HHZ", "HHN", "HHE"]
 
 
 # ---------------------------------------- OPTIONAL PARAMETERS ---------------------------------------------------------
