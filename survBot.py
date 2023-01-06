@@ -365,10 +365,13 @@ class SurveillanceBot(object):
         fnout = self.get_fig_path_abs(nwst_id)
         st = self.data.get(nwst_id)
         if st:
-            # TODO: this section might fail, adding try-except block for analysis and to prevent program from crashing
+            # TODO: this section failed once, adding try-except block for analysis and to prevent program from crashing
             try:
+                endtime = UTCDateTime()
+                starttime = endtime - self.parameters.get('timespan') * 24 * 3600
                 st = modify_stream_for_plot(st, parameters=self.parameters)
-                st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full')
+                st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full',
+                        starttime=starttime, endtime=endtime)
                 # set_axis_ylabels(fig, self.parameters, self.verbosity)
                 set_axis_yticks(fig, self.parameters, self.verbosity)
                 set_axis_color(fig)
@@ -705,7 +708,10 @@ class StationQC(object):
         dt_action = self.get_dt_for_action()
         interval = self.parameters.get('interval')
         if dt_action <= dt_active < dt_action + timedelta(seconds=interval):
-            self.send_mail(key, status_type='Inactive')
+            detailed_message = f'\n{self.nwst_id}\n\n'
+            for key, status in self.status_dict.items():
+                detailed_message += f'{key}: {status.message}\n'
+            self.send_mail(key, status_type='Inactive', additional_message=detailed_message)
 
     def start(self):
         self.analyse_channels()
@@ -718,7 +724,6 @@ class StationQC(object):
             self.print(150 * '#')
             self.print('This is StationQT. Calculating quality for station'
                        ' {network}.{station}.{location}'.format(**self.nsl))
-        self.activity_check()
         self.voltage_analysis()
         self.pb_temp_analysis()
         self.pb_power_analysis()
@@ -726,6 +731,9 @@ class StationQC(object):
         self.mass_analysis()
         self.clock_quality_analysis()
         self.gaps_analysis()
+
+        # activity check should be done last for useful status output (e.g. email)
+        self.activity_check()
 
     def return_print_analysis(self):
         items = [self.nwst_id]
