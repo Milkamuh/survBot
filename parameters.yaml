@@ -129,3 +129,5 @@ EMAIL:
   sender: "webmaster@geophysik.ruhr-uni-bochum.de" # mail sender
   stations_blacklist: ['GR33']                     # do not send emails for specific stations
   networks_blacklist: []                           # do not send emails for specific network
+  # specify recipients for single stations in a yaml: key = email-address, val = station list (e.g. [1Y.GR01, 1Y.GR02])
+  external_mail_list: "mailing_list.yaml"

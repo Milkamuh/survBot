@@ -5,6 +5,7 @@ __version__ = '0.1'
 __author__ = 'Marcel Paffrath'
 
 import os
+import copy
 import traceback
 import yaml
 import argparse
@@ -501,7 +502,8 @@ class StationQC(object):
         self.network = nsl.get('network')
         self.station = nsl.get('station')
         self.location = nsl.get('location')
-        self.parameters = parameters
+        # make a copy of parameters object to prevent accidental changes
+        self.parameters = copy.deepcopy(parameters)
         self.program_starttime = starttime
         self.verbosity = verbosity
         self.last_active = False
@@ -639,10 +641,14 @@ class StationQC(object):
 
         sender = mail_params.get('sender')
         addresses = mail_params.get('addresses')
+        add_addresses = self.get_additional_mail_recipients(mail_params)
+        if add_addresses:
+            # create copy of addresses ( [:] ) to prevent changing original, general list with addresses
+            addresses = addresses[:] + list(add_addresses)
         server = mail_params.get('mailserver')
         if not sender or not addresses:
             if self.verbosity:
-                print('Mail sender or addresses not correctly defined. Return')
+                print('Mail sender or addresses not (correctly) defined. Return')
             return
         dt = self.get_dt_for_action()
         text = f'{key}: Status {status_type} longer than {dt}: ' + additional_message
@@ -653,8 +659,26 @@ class StationQC(object):
 
         # send message via SMTP server
         s = smtplib.SMTP(server)
-        s.sendmail(sender, addresses, msg.as_string())
+        s.send_message(msg)
         s.quit()
+
+    def get_additional_mail_recipients(self, mail_params):
+        """ return additional recipients from external mail list if this station (self.nwst_id) is specified """
+        eml_filename = mail_params.get('external_mail_list')
+        if not eml_filename:
+            return []
+        try:
+            with open(eml_filename) as fid:
+                address_dict = yaml.safe_load(fid)
+        except FileNotFoundError as e:
+            if self.verbosity:
+                print(e)
+        if not isinstance(address_dict, dict):
+            if self.verbosity:
+                print(f'Could not read dictionary from file {eml_filename}')
+        for address, nwst_ids in address_dict.items():
+            if self.nwst_id in nwst_ids:
+                yield address
 
     def get_dt_for_action(self):
         n_track = self.parameters.get('n_track')
