@@ -178,7 +178,8 @@ class SurveillanceBot(object):
         for filename in self.filenames:
             # if file already read and last modification time is the same as of last read operation: continue
             if self.filenames_read_last_modif.get(filename) == os.path.getmtime(filename):
-                print('Continue on file', filename)
+                if self.verbosity > 0:
+                    print('Continue on file', filename)
                 continue
             try:
                 # read only header of wf_data
