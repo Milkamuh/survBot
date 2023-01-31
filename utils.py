@@ -155,7 +155,7 @@ def set_axis_ylabels(fig, parameters, verbosity=0):
             ax.set_ylabel(channel_name)
 
 
-def set_axis_color(fig, color='grey'):
+def set_axis_color(fig, color='0.8'):
     """
     Set all axes of figure to specific color
     """

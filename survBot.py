@@ -78,7 +78,7 @@ class SurveillanceBot(object):
         self.outpath_html = outpath_html
         self.filenames = []
         self.filenames_wf_data = []
-        self.filenames_read = []
+        self.filenames_read_last_modif = {}
         self.station_list = []
         self.analysis_print_list = []
         self.analysis_results = {}
@@ -156,12 +156,11 @@ class SurveillanceBot(object):
                         if channel in channels_wf_data:
                             self.filenames_wf_data += fnames
 
-    def read_data(self, re_read_at_hour=1, daily_overlap=2):
+    def read_data(self, re_read_at_hour=1):
         '''
         read data method reads new data into self.stream
 
         :param re_read_at_hour: update archive at specified hour each day (hours up to 24)
-        :param daily_overlap: re-read data of previous day until specified hour (hours up to 24)
         '''
         self.data = {}
 
@@ -169,15 +168,16 @@ class SurveillanceBot(object):
         curr_time = UTCDateTime()
         current_day = curr_time.julday
         current_hour = curr_time.hour
-        yesterday = (curr_time - 24. * 3600.).julday
         if re_read_at_hour is not False and current_day != self.current_day and current_hour == re_read_at_hour:
-            self.filenames_read = []
+            self.filenames_read_last_modif = {}
             self.dataStream = Stream()
             self.current_day = current_day
 
         # add all data to current stream
         for filename in self.filenames:
-            if filename in self.filenames_read:
+            # if file already read and last modification time is the same as of last read operation: continue
+            if self.filenames_read_last_modif.get(filename) == os.path.getmtime(filename):
+                print('Continue on file', filename)
                 continue
             try:
                 # read only header of wf_data
@@ -185,11 +185,7 @@ class SurveillanceBot(object):
                     st_new = read(filename, headonly=True)
                 else:
                     st_new = read(filename, dtype=float)
-                # add file to read filenames to prevent re-reading in case it is not the current day (or end of
-                # previous day)
-                if not filename.endswith(f'{current_day:03}') and not (
-                        filename.endswith(f'{yesterday:03}') and current_hour <= daily_overlap):
-                    self.filenames_read.append(filename)
+                self.filenames_read_last_modif[filename] = os.path.getmtime(filename)
             except Exception as e:
                 print(f'Could not read file {filename}:', e)
                 continue
