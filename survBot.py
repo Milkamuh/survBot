@@ -5,10 +5,12 @@ __version__ = '0.1'
 __author__ = 'Marcel Paffrath'
 
 import os
+import io
 import copy
 import traceback
 import yaml
 import argparse
+import json
 
 import time
 from datetime import timedelta
@@ -18,13 +20,14 @@ import matplotlib.pyplot as plt
 from obspy import read, UTCDateTime, Stream
 from obspy.clients.filesystem.sds import Client
 
-from write_utils import write_html_text, write_html_row, write_html_footer, write_html_header, get_print_title_str, \
-    init_html_table, finish_html_table
+from write_utils import get_html_text, get_html_row, html_footer, get_html_header, get_print_title_str, \
+    init_html_table, finish_html_table, get_mail_html_header, add_html_image
 from utils import get_bg_color, modify_stream_for_plot, set_axis_yticks, set_axis_color, plot_axis_thresholds
 
 try:
     import smtplib
-    from email.mime.text import MIMEText
+    from email.message import EmailMessage
+    from email.utils import make_msgid
 
     mail_functionality = True
 except ImportError:
@@ -50,8 +53,14 @@ def read_yaml(file_path, n_read=3):
 
 
 def nsl_from_id(nwst_id):
+    nwst_id = get_full_seed_id(nwst_id)
     network, station, location = nwst_id.split('.')
     return dict(network=network, station=station, location=location)
+
+
+def get_full_seed_id(nwst_id):
+    seed_id = '{}.{}.{}'.format(*nwst_id.split('.'), '')
+    return seed_id
 
 
 def get_nwst_id(trace):
@@ -90,6 +99,8 @@ class SurveillanceBot(object):
         self.print_count = 0
         self.status_message = ''
         self.html_fig_dir = 'figures'
+
+        self.active_figures = {}
 
         self.cl = Client(self.parameters.get('datapath'))  # TODO: Check if this has to be loaded again on update
         self.get_stations()
@@ -355,13 +366,13 @@ class SurveillanceBot(object):
         for nwst_id in self.station_list:
             self.write_html_figure(nwst_id)
 
-    def write_html_figure(self, nwst_id):
+    def write_html_figure(self, nwst_id, save_bytes=False):
         """ Write figure for html for specified station """
         self.check_fig_dir()
 
         fig = plt.figure(figsize=(16, 9))
-        fnout = self.get_fig_path_abs(nwst_id)
-        st = self.data.get(nwst_id)
+        fnames_out = [self.get_fig_path_abs(nwst_id), io.BytesIO()]
+        st = self.data.get(get_full_seed_id(nwst_id))
         if st:
             # TODO: this section failed once, adding try-except block for analysis and to prevent program from crashing
             try:
@@ -383,84 +394,111 @@ class SurveillanceBot(object):
                              f'Refreshed hourly or on FAIL status.')
                 for ax in fig.axes:
                     ax.grid(True, alpha=0.1)
-                fig.savefig(fnout, dpi=150., bbox_inches='tight')
+                for fnout in fnames_out:
+                    fig.savefig(fnout, dpi=150., bbox_inches='tight')
+                # if needed save figure as virtual object (e.g. for mailing)
+                if save_bytes:
+                    fnames_out[-1].seek(0)
+                    self.active_figures[nwst_id] = fnames_out[-1]
         plt.close(fig)
 
-    def write_html_table(self, default_color='#e6e6e6', default_header_color='#999', hide_keys_mobile=('other')):
+    def get_html_class(self, hide_keys_mobile=None, status=None, check_key=None):
+        """ helper function for html class if a certain condition is fulfilled """
+        html_class = None
+        if status and status.is_active:
+            html_class = 'blink-bg'
+        if hide_keys_mobile and check_key in hide_keys_mobile:
+            html_class = 'hidden-mobile'
+        return html_class
 
-        def get_html_class(status=None, check_key=None):
-            """ helper function for html class if a certain condition is fulfilled """
-            html_class = None
-            if status and status.is_active:
-                html_class = 'blink-bg'
-            if check_key in hide_keys_mobile:
-                html_class = 'hidden-mobile'
-            return html_class
+    def make_html_table_header(self, default_header_color, hide_keys_mobile=None, add_links=True):
+        # First write header items
+        header = self.keys.copy()
+        # add columns for additional links
+        if add_links:
+            for key in self.add_links:
+                header.insert(-1, key)
 
+        header_items = [dict(text='Station', color=default_header_color)]
+        for check_key in header:
+            html_class = self.get_html_class(hide_keys_mobile, check_key=check_key)
+            item = dict(text=check_key, color=default_header_color, html_class=html_class)
+            header_items.append(item)
+
+        return header, header_items
+
+    def get_html_row_items(self, status_dict, nwst_id, header, default_color, hide_keys_mobile=None,
+                           hyperlinks=True):
+        ''' create a html table row for the different keys '''
+
+        fig_name = self.get_fig_path_rel(nwst_id)
+        nwst_id_str = nwst_id.rstrip('.')
+        col_items = [dict(text=nwst_id_str, color=default_color, hyperlink=fig_name if hyperlinks else None,
+                          bold=True, tooltip=f'Show plot of {nwst_id_str}')]
+
+        for check_key in header:
+            if check_key in self.keys:
+                status = status_dict.get(check_key)
+                message, detailed_message = status.get_status_str()
+
+                # get background color
+                dt_thresh = [timedelta(seconds=sec) for sec in self.dt_thresh]
+                bg_color = get_bg_color(check_key, status, dt_thresh, hex=True)
+                if not bg_color:
+                    bg_color = default_color
+
+                # add degree sign for temp
+                if check_key == 'temp':
+                    if not type(message) in [str]:
+                        message = str(message) + deg_str
+
+                html_class = self.get_html_class(hide_keys_mobile, status=status, check_key=check_key)
+                item = dict(text=str(message), tooltip=str(detailed_message), color=bg_color,
+                            html_class=html_class)
+            elif check_key in self.add_links:
+                value = self.add_links.get(check_key).get('URL')
+                link_text = self.add_links.get(check_key).get('text')
+                if not value:
+                    continue
+                nw, st = nwst_id.split('.')[:2]
+                hyperlink_dict = dict(nw=nw, st=st, nwst_id=nwst_id)
+                link = value.format(**hyperlink_dict)
+                item = dict(text=link_text, tooltip=link, hyperlink=link if hyperlinks else None, color=default_color)
+            else:
+                item = dict(text='', tooltip='')
+            col_items.append(item)
+
+        return col_items
+
+    def write_html_table(self, default_color='#e6e6e6', default_header_color='#999999', hide_keys_mobile=('other',)):
         self.check_html_dir()
         fnout = pjoin(self.outpath_html, 'survBot_out.html')
         if not fnout:
             return
         try:
             with open(fnout, 'w') as outfile:
-                write_html_header(outfile, self.refresh_period)
-                # write_html_table_title(outfile, self.parameters)
-                init_html_table(outfile)
+                outfile.write(get_html_header(self.refresh_period))
 
-                # First write header items
-                header = self.keys.copy()
-                # add columns for additional links
-                for key in self.add_links:
-                    header.insert(-1, key)
-                header_items = [dict(text='Station', color=default_header_color)]
-                for check_key in header:
-                    html_class = get_html_class(check_key=check_key)
-                    item = dict(text=check_key, color=default_header_color, html_class=html_class)
-                    header_items.append(item)
-                write_html_row(outfile, header_items, html_key='th')
+                # write_html_table_title(self.parameters)
+                outfile.write(init_html_table())
 
-                # Write all cells
+                # write html header row
+                header, header_items = self.make_html_table_header(default_header_color, hide_keys_mobile)
+                html_row = get_html_row(header_items, html_key='th')
+                outfile.write(html_row)
+
+                # Write all cells (row after row)
                 for nwst_id in self.station_list:
-                    fig_name = self.get_fig_path_rel(nwst_id)
-                    nwst_id_str = nwst_id.rstrip('.')
-                    col_items = [dict(text=nwst_id_str, color=default_color, hyperlink=fig_name,
-                                      bold=True, tooltip=f'Show plot of {nwst_id_str}')]
-                    for check_key in header:
-                        if check_key in self.keys:
-                            status_dict = self.analysis_results.get(nwst_id)
-                            status = status_dict.get(check_key)
-                            message, detailed_message = status.get_status_str()
+                    # get list with column-wise items to write as a html row
+                    status_dict = self.analysis_results.get(nwst_id)
+                    col_items = self.get_html_row_items(status_dict, nwst_id, header, default_color, hide_keys_mobile)
+                    outfile.write(get_html_row(col_items))
 
-                            # get background color
-                            dt_thresh = [timedelta(seconds=sec) for sec in self.dt_thresh]
-                            bg_color = get_bg_color(check_key, status, dt_thresh, hex=True)
-                            if not bg_color:
-                                bg_color = default_color
+                outfile.write(finish_html_table())
 
-                            # add degree sign for temp
-                            if check_key == 'temp':
-                                if not type(message) in [str]:
-                                    message = str(message) + deg_str
+                outfile.write(get_html_text(self.status_message))
+                outfile.write(html_footer())
 
-                            html_class = get_html_class(status=status, check_key=check_key)
-                            item = dict(text=str(message), tooltip=str(detailed_message), color=bg_color,
-                                        html_class=html_class)
-                        elif check_key in self.add_links:
-                            value = self.add_links.get(check_key).get('URL')
-                            link_text = self.add_links.get(check_key).get('text')
-                            if not value:
-                                continue
-                            nw, st = nwst_id.split('.')[:2]
-                            hyperlink_dict = dict(nw=nw, st=st, nwst_id=nwst_id)
-                            link = value.format(**hyperlink_dict)
-                            item = dict(text=link_text, tooltip=link, hyperlink=link, color=default_color)
-                        col_items.append(item)
-
-                    write_html_row(outfile, col_items)
-
-                finish_html_table(outfile)
-                write_html_text(outfile, self.status_message)
-                write_html_footer(outfile)
         except Exception as e:
             print(f'Could not write HTML table to {fnout}:')
             print(traceback.format_exc())
@@ -566,6 +604,7 @@ class StationQC(object):
         # self.status_dict[key] = current_status_message + status_message
 
     def error(self, key, detailed_message, last_occurrence=None, count=1):
+        send_mail = False
         new_error = StatusError(count=count, show_count=self.parameters.get('warn_count'))
         current_status = self.status_dict.get(key)
         if current_status.is_error:
@@ -574,20 +613,23 @@ class StationQC(object):
             current_status = new_error
             # if error is new and not on program-startup set active and refresh plot (using parent class)
             if self.search_previous_errors(key, n_errors=1) is True:
-                self.parent.write_html_figure(self.nwst_id)
+                self.parent.write_html_figure(self.nwst_id, save_bytes=True)
 
         if self.verbosity:
             self.print(f'{UTCDateTime()}: {detailed_message}', flush=False)
 
         # do not send error mail if this is the first run (e.g. program startup) or state was already error (unchanged)
         if self.search_previous_errors(key) is True:
-            self.send_mail(key, status_type='FAIL', additional_message=detailed_message)
-            # set status to "inactive" after sending info mail
+            send_mail = True
+            # set status to "inactive" when info mail is sent
             current_status.is_active = False
         elif self.search_previous_errors(key) == 'active':
             current_status.is_active = True
 
+        # first update status, then send mail
         self._update_status(key, current_status, detailed_message, last_occurrence)
+        if send_mail:
+            self.send_mail(key, status_type='FAIL', additional_message=detailed_message)
 
     def search_previous_errors(self, key, n_errors=None):
         """
@@ -604,6 +646,11 @@ class StationQC(object):
         # +1 to check whether n_errors +1 was no error (error is new)
         n_errors += 1
 
+        # simulate an error specified in json file (dictionary: {nwst_id: key} )
+        if self._simulated_error_check(key) is True:
+            print(f'Simulating Error on {self.nwst_id}, {key}')
+            return True
+
         previous_errors = self.status_track.get(key)
         # only if error list is filled n_track times
         if previous_errors and len(previous_errors) == n_errors:
@@ -614,6 +661,14 @@ class StationQC(object):
         elif previous_errors and previous_errors[-1] and not all(previous_errors):
             return 'active'
         return False
+
+    def _simulated_error_check(self, key, fname='simulate_fail.json'):
+        if not os.path.isfile(fname):
+            return
+        with open(fname) as fid:
+            d = json.load(fid)
+        if d.get(self.nwst_id) == key:
+            return True
 
     def send_mail(self, key, status_type, additional_message=''):
         """ Send info mail using parameters specified in parameters file """
@@ -653,33 +708,81 @@ class StationQC(object):
             return
         dt = self.get_dt_for_action()
         text = f'{key}: Status {status_type} longer than {dt}: ' + additional_message
-        msg = MIMEText(text)
+
+        msg = EmailMessage()
+
         msg['Subject'] = f'new message on station {self.nwst_id}'
         msg['From'] = sender
         msg['To'] = ', '.join(addresses)
+
+        msg.set_content(text)
+
+        # html mail version
+        html_str = self.add_html_mail_body(text)
+        msg.add_alternative(html_str, subtype='html')
 
         # send message via SMTP server
         s = smtplib.SMTP(server)
         s.send_message(msg)
         s.quit()
 
+    def add_html_mail_body(self, text, default_color='#e6e6e6'):
+        parent = self.parent
+
+        header, header_items = parent.make_html_table_header('#999999', add_links=False)
+        col_items = parent.get_html_row_items(self.status_dict, self.nwst_id, header, default_color, hyperlinks=False)
+
+        # set general status text
+        html_str = get_html_text(text)
+
+        # init html header and table
+        html_str += get_mail_html_header()
+        html_str += init_html_table()
+
+        # add table header and row of current station
+        html_str += get_html_row(header_items, html_key='th')
+        html_str += get_html_row(col_items)
+
+        html_str += finish_html_table()
+
+        if self.nwst_id in self.parent.active_figures.keys():
+            fid = self.parent.active_figures.pop(self.nwst_id)
+            html_str += add_html_image(img_data=fid.read())
+
+        html_str += html_footer()
+
+        return html_str
+
     def get_additional_mail_recipients(self, mail_params):
         """ return additional recipients from external mail list if this station (self.nwst_id) is specified """
         eml_filename = mail_params.get('external_mail_list')
-        if not eml_filename:
-            return []
-        try:
-            with open(eml_filename) as fid:
-                address_dict = yaml.safe_load(fid)
-        except FileNotFoundError as e:
+        if eml_filename:
+            # try to open file
+            try:
+                with open(eml_filename, 'r') as fid:
+                    address_dict = yaml.safe_load(fid)
+
+                for address, nwst_ids in address_dict.items():
+                    if self.nwst_id in nwst_ids:
+                        yield address
+            # file not existing
+            except FileNotFoundError as e:
+                if self.verbosity:
+                    print(e)
+            # no dictionary
+            except AttributeError as e:
+                if self.verbosity:
+                    print(f'Could not read dictionary from file {eml_filename}: {e}')
+            # other exceptions
+            except Exception as e:
+                if self.verbosity:
+                    print(f'Could not open file {eml_filename}: {e}')
+        # no file specified
+        else:
             if self.verbosity:
-                print(e)
-        if not isinstance(address_dict, dict):
-            if self.verbosity:
-                print(f'Could not read dictionary from file {eml_filename}')
-        for address, nwst_ids in address_dict.items():
-            if self.nwst_id in nwst_ids:
-                yield address
+                print('No external mail list set.')
+
+        return []
 
     def get_dt_for_action(self):
         n_track = self.parameters.get('n_track')
@@ -755,6 +858,13 @@ class StationQC(object):
 
         # activity check should be done last for useful status output (e.g. email)
         self.activity_check()
+
+        self._simulate_error()
+
+    def _simulate_error(self):
+        for key in self.keys:
+            if self._simulated_error_check(key):
+                self.error(key, 'SIMULATED ERROR')
 
     def return_print_analysis(self):
         items = [self.nwst_id]

@@ -1,16 +1,21 @@
+from base64 import b64encode
 from datetime import timedelta
 
 
-def write_html_table_title(fobj, parameters):
+def _convert_to_textstring(lst):
+    return '\n'.join(lst)
+
+
+def get_html_table_title(parameters):
     title = get_print_title_str(parameters)
-    fobj.write(f'<h3>{title}</h3>\n')
+    return f'<h3>{title}</h3>\n'
 
 
-def write_html_text(fobj, text):
-    fobj.write(f'<p>{text}</p>\n')
+def get_html_text(text):
+    return f'<p>{text}</p>\n'
 
 
-def write_html_header(fobj, refresh_rate=10):
+def get_html_header(refresh_rate=10):
     header = ['<!DOCTYPE html>',
               '<html>',
               '<head>',
@@ -21,28 +26,42 @@ def write_html_header(fobj, refresh_rate=10):
               '<meta charset="utf-8">',
               '<meta name="viewport" content="width=device-width, initial-scale=1">',
               '<body>']
-    for item in header:
-        fobj.write(item + '\n')
+    header = _convert_to_textstring(header)
+    return header
 
 
-def init_html_table(fobj):
-    fobj.write('<table style="width:100%">\n')
+def get_mail_html_header():
+    header = ['<html>',
+              '<head>',
+              '</head>',
+              '<body>']
+    header = _convert_to_textstring(header)
+    return header
 
 
-def finish_html_table(fobj):
-    fobj.write('</table>\n')
+def init_html_table():
+    return '<table style="width:100%">\n'
 
 
-def write_html_footer(fobj):
+def finish_html_table():
+    return '</table>\n'
+
+
+def html_footer():
     footer = ['</body>',
               '</html>']
-    for item in footer:
-        fobj.write(item + '\n')
+    footer = _convert_to_textstring(footer)
+    return footer
 
 
-def write_html_row(fobj, items, html_key='td'):
+def add_html_image(img_data, img_format='png'):
+    return f"""<br>\n<img src="data:image/{img_format};base64, {b64encode(img_data).decode('ascii')}">"""
+
+
+def get_html_row(items, html_key='td'):
+    row_string = ''
     default_space = '  '
-    fobj.write(default_space + '<tr>\n')
+    row_string += default_space + '<tr>\n'
     for item in items:
         text = item.get('text')
         if item.get('bold'):
@@ -57,9 +76,10 @@ def write_html_row(fobj, items, html_key='td'):
         image_str = f'<a href="{hyperlink}">' if hyperlink else ''
         html_class = item.get('html_class')
         class_str = f' class="{html_class}"' if html_class else ''
-        fobj.write(2 * default_space + f'<{html_key}{class_str} bgcolor="{color}" title="{tooltip}"> {image_str}'
-                   + text + f'</{html_key}>\n')
-    fobj.write(default_space + '</tr>\n')
+        row_string += 2 * default_space + f'<{html_key}{class_str} bgcolor="{color}" title="{tooltip}"> {image_str}'\
+                    + text + f'</{html_key}>\n'
+    row_string += default_space + '</tr>\n'
+    return row_string
 
 
 def get_print_title_str(parameters):
