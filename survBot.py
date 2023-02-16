@@ -612,7 +612,7 @@ class StationQC(object):
         else:
             current_status = new_error
             # if error is new and not on program-startup set active and refresh plot (using parent class)
-            if self.search_previous_errors(key, n_errors=1) is True:
+            if self.status_track.get(key) and not self.status_track.get(key)[-1]:
                 self.parent.write_html_figure(self.nwst_id, save_bytes=True)
 
         if self.verbosity:
@@ -657,9 +657,6 @@ class StationQC(object):
             # if first entry was no error but all others are, return True (-> new Fail n_track times)
             if not previous_errors[0] and all(previous_errors[1:]):
                 return True
-        # special case: n_errors set to 1 (+1) to check for upcoming error (refresh plot etc.), but not on startup
-        if not previous_errors[0] and n_errors == 2:
-            return True
         # in case previous_errors exists, last item is error but not all items are error, error still active
         elif previous_errors and previous_errors[-1] and not all(previous_errors):
             return 'active'
