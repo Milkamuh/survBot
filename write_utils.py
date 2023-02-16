@@ -55,7 +55,7 @@ def html_footer():
 
 
 def add_html_image(img_data, img_format='png'):
-    return f"""<br>\n<img src="data:image/{img_format};base64, {b64encode(img_data).decode('ascii')}">"""
+    return f"""<br>\n<img width="100%" src="data:image/{img_format};base64, {b64encode(img_data).decode('ascii')}">"""
 
 
 def get_html_row(items, html_key='td'):

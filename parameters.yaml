@@ -7,7 +7,7 @@ stations_blacklist: ["TEST", "EREA"]      # exclude these stations
 networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
 n_track: 300               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
-timespan: 1                # Check data of the recent x days
+timespan: 3                # Check data of the recent x days
 verbosity: 0               # verbosity flag
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
 warn_count: False           # show number of warnings and errors in table
@@ -125,7 +125,7 @@ add_links:
 # E-mail notifications
 EMAIL:
   mailserver: "localhost"
-  addresses: ["marcel.paffrath@rub.de",]# "kasper.fischer@rub.de"]  # list of mail addresses for info mails
+  addresses: ["marcel.paffrath@rub.de", "kasper.fischer@rub.de"]  # list of mail addresses for info mails
   sender: "webmaster@geophysik.ruhr-uni-bochum.de" # mail sender
   stations_blacklist: ['GR33']                     # do not send emails for specific stations
   networks_blacklist: []                           # do not send emails for specific network

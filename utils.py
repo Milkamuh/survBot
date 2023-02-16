@@ -47,10 +47,11 @@ def get_color_mpl(key):
 
 def get_time_delay_color(dt, dt_thresh):
     """ Set color of time delay after thresholds specified in self.dt_thresh """
-    if dt < dt_thresh[0]:
-        return get_color('OK')
-    elif dt_thresh[0] <= dt < dt_thresh[1]:
-        return get_color('WARN')
+    if isinstance(dt, type(dt_thresh[0])):
+        if dt < dt_thresh[0]:
+            return get_color('OK')
+        elif dt_thresh[0] <= dt < dt_thresh[1]:
+            return get_color('WARN')
     return get_color('FAIL')
 
 

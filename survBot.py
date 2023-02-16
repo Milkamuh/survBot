@@ -69,7 +69,7 @@ def get_nwst_id(trace):
 
 
 def fancy_timestr(dt, thresh=600, modif='+'):
-    if dt > timedelta(seconds=thresh):
+    if isinstance(dt, timedelta) and dt > timedelta(seconds=thresh):
         value = f'{modif} ' + str(dt) + f' {modif}'
     else:
         value = str(dt)
@@ -643,7 +643,7 @@ class StationQC(object):
         if n_errors is None:
             n_errors = self.parameters.get('n_track')
 
-        # +1 to check whether n_errors +1 was no error (error is new)
+        # +1 to check whether n_errors + 1 was no error (error is new)
         n_errors += 1
 
         # simulate an error specified in json file (dictionary: {nwst_id: key} )
@@ -657,6 +657,9 @@ class StationQC(object):
             # if first entry was no error but all others are, return True (-> new Fail n_track times)
             if not previous_errors[0] and all(previous_errors[1:]):
                 return True
+        # special case: n_errors set to 1 (+1) to check for upcoming error (refresh plot etc.), but not on startup
+        if not previous_errors[0] and n_errors == 2:
+            return True
         # in case previous_errors exists, last item is error but not all items are error, error still active
         elif previous_errors and previous_errors[-1] and not all(previous_errors):
             return 'active'
