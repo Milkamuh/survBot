@@ -1128,7 +1128,7 @@ class StationQC(object):
                     if message == 'OK':
                         self.status_ok(key)
                         continue
-                    if volt_lvl > 1:
+                    if volt_lvl != 1:
                         n_occurrences = self.calc_occurrences(ind_array)
                         self.warn(key=key,
                                   detailed_message=f'Trace {trace.get_id()}: '
