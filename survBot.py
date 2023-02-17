@@ -657,8 +657,8 @@ class StationQC(object):
             # if first entry was no error but all others are, return True (-> new Fail n_track times)
             if not previous_errors[0] and all(previous_errors[1:]):
                 return True
-        # in case previous_errors exists, last item is error but not all items are error, error still active
-        elif previous_errors and previous_errors[-1] and not all(previous_errors):
+        # in case previous_errors exist, last item is error but not all items are error, error still active
+        if previous_errors and previous_errors[-1] and not all(previous_errors):
             return 'active'
         return False
 
