@@ -1364,7 +1364,9 @@ class StatusOther(Status):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Call survBot')
     parser.add_argument('-html', dest='html_path', default=None, help='filepath for HTML output')
+    parser.add_argument('-parfile', dest='parfile', default='parameters.yaml',
+                        help='parameter file (default: parameters.yaml)')
     args = parser.parse_args()
 
-    survBot = SurveillanceBot(parameter_path='parameters.yaml', outpath_html=args.html_path)
+    survBot = SurveillanceBot(parameter_path=args.parfile, outpath_html=args.html_path)
     survBot.start()
