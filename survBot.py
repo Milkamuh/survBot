@@ -829,13 +829,23 @@ class StationQC(object):
             return max(endtimes)
 
     def check_for_inactive_message(self, key, dt_active):
+        """ send mail if station is inactive longer than dt_action and no FAIL status is present """
+
+        # check if any error is present in status_dict (in that case an email is sent already)
+        if self.check_for_any_error():
+            return
+
         dt_action = self.get_dt_for_action()
         interval = self.parameters.get('interval')
+
         if dt_action <= dt_active < dt_action + timedelta(seconds=interval):
             detailed_message = f'\n{self.nwst_id}\n\n'
             for key, status in self.status_dict.items():
                 detailed_message += f'{key}: {status.message}\n'
             self.send_mail(key, status_type='Inactive', additional_message=detailed_message)
+
+    def check_for_any_error(self):
+        return any([status.is_error for status in self.status_dict.values()])
 
     def start(self):
         self.analyse_channels()
