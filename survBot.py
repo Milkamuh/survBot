@@ -603,9 +603,11 @@ class StationQC(object):
         # current_status_message = '' if current_status_message in [None, 'OK', '-'] else current_status_message + ' | '
         # self.status_dict[key] = current_status_message + status_message
 
-    def error(self, key, detailed_message, last_occurrence=None, count=1):
+    def error(self, key, detailed_message, last_occurrence=None, count=1, disc=False):
         send_mail = False
         new_error = StatusError(count=count, show_count=self.parameters.get('warn_count'))
+        if disc:
+            new_error.set_disconnected()
         current_status = self.status_dict.get(key)
         if current_status.is_error:
             current_status.count += count
@@ -831,8 +833,8 @@ class StationQC(object):
     def check_for_inactive_message(self, key, dt_active):
         """ send mail if station is inactive longer than dt_action and no FAIL status is present """
 
-        # check if any error is present in status_dict (in that case an email is sent already)
-        if self.check_for_any_error():
+        # check if any error is present in status_dict and not disconnected (in that case an email is sent already)
+        if self.check_for_any_error_no_dcn():
             return
 
         dt_action = self.get_dt_for_action()
@@ -844,8 +846,8 @@ class StationQC(object):
                 detailed_message += f'{key}: {status.message}\n'
             self.send_mail(key, status_type='Inactive', additional_message=detailed_message)
 
-    def check_for_any_error(self):
-        return any([status.is_error for status in self.status_dict.values()])
+    def check_for_any_error_no_dcn(self):
+        return any([status.is_error and not status.connection_error for status in self.status_dict.values()])
 
     def start(self):
         self.analyse_channels()
@@ -1147,8 +1149,10 @@ class StationQC(object):
                                   count=n_occurrences,
                                   last_occurrence=self.get_last_occurrence(trace, ind_array))
                     # if last_val == current voltage (which is not 1) -> FAIL or last_val < 1: PBox no data
-                    if volt_lvl == last_val or (volt_lvl == -1 and last_val < 1):
+                    if volt_lvl == last_val:
                         self.error(key, detailed_message=f'Last PowBox voltage state {last_val}V: {message}')
+                    elif volt_lvl == -1 and last_val < 1:
+                        self.error(key, detailed_message=f'PowBox under 1V - connection error', disc=True)
 
     def gaps_analysis(self, key='gaps'):
         """ return gaps of a given nwst_id """
@@ -1282,19 +1286,23 @@ class StationQC(object):
 
 
 class Status(object):
+    """ Basic Status class. All status classes are derived from this class."""
     def __init__(self, message=None, detailed_messages=None, count: int = 0, last_occurrence=None, show_count=True):
         if message is None:
             message = '-'
         if detailed_messages is None:
             detailed_messages = []
+
         self.show_count = show_count
         self.message = message
         self.messages = [message]
         self.detailed_messages = detailed_messages
         self.count = count
         self.last_occurrence = last_occurrence
+
         self.is_warn = None
         self.is_error = None
+        self.connection_error = None
         self.is_other = False
         self.is_active = False
 
@@ -1341,6 +1349,15 @@ class StatusError(Status):
         super(StatusError, self).__init__(message=message, count=count, last_occurrence=last_occurence,
                                           detailed_messages=detailed_messages, show_count=show_count)
         self.set_error()
+        self.default_message = message
+
+    def set_disconnected(self, message='DCN'):
+        self.connection_error = True
+        self.message = message
+
+    def set_connected(self):
+        self.connection_error = False
+        self.message = self.default_message
 
 
 class StatusOther(Status):

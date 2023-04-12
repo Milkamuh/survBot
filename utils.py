@@ -19,7 +19,10 @@ def get_bg_color(check_key, status, dt_thresh=None, hex=False):
         if status.is_warn:
             bg_color = get_warn_color(status.count)
         elif status.is_error:
-            bg_color = get_color('FAIL')
+            if status.connection_error:
+                bg_color = get_color('disc')
+            else:
+                bg_color = get_color('FAIL')
         else:
             bg_color = get_color(message)
     if not bg_color:
@@ -36,7 +39,8 @@ def get_color(key):
                    'NO DATA': (255, 255, 125, 255),
                    'WARN': (255, 255, 80, 255),
                    'OK': (125, 255, 125, 255),
-                   'undefined': (230, 230, 230, 255)}
+                   'undefined': (230, 230, 230, 255),
+                   'disc': (255, 160, 40, 255),}
     return colors_dict.get(key)
 
 

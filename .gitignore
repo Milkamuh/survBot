@@ -212,3 +212,4 @@ flycheck_*.el
 
 
 /__simulate_fail.json
+/mailing_list.yaml
