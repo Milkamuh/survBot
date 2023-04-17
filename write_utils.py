@@ -73,11 +73,11 @@ def get_html_row(items, html_key='td'):
         # check for black background of headers (shouldnt happen anymore)
         color = '#e6e6e6' if color == '#000000' else color
         hyperlink = item.get('hyperlink')
-        image_str = f'<a href="{hyperlink}">' if hyperlink else ''
+        text_str = f'<a href="{hyperlink}"> {text} </a>' if hyperlink else text
         html_class = item.get('html_class')
         class_str = f' class="{html_class}"' if html_class else ''
-        row_string += 2 * default_space + f'<{html_key}{class_str} bgcolor="{color}" title="{tooltip}"> {image_str}'\
-                    + text + f'</{html_key}>\n'
+        row_string += 2 * default_space + f'<{html_key}{class_str} bgcolor="{color}" title="{tooltip}"> {text_str}'\
+                    + f'</{html_key}>\n'
     row_string += default_space + '</tr>\n'
     return row_string
 
