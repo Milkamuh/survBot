@@ -49,13 +49,17 @@ def finish_html_table():
 
 def html_footer():
     footer = ['</body>',
-              '</html>']
+              '</html>\n']
     footer = _convert_to_textstring(footer)
     return footer
 
 
 def add_html_image(img_data, img_format='png'):
     return f"""<br>\n<img width="100%" src="data:image/{img_format};base64, {b64encode(img_data).decode('ascii')}">"""
+
+
+def get_html_link(text, link):
+    return f'<a href="{link}"> {text} </a>'
 
 
 def get_html_row(items, html_key='td'):
@@ -73,7 +77,7 @@ def get_html_row(items, html_key='td'):
         # check for black background of headers (shouldnt happen anymore)
         color = '#e6e6e6' if color == '#000000' else color
         hyperlink = item.get('hyperlink')
-        text_str = f'<a href="{hyperlink}"> {text} </a>' if hyperlink else text
+        text_str = get_html_link(text, hyperlink) if hyperlink else text
         html_class = item.get('html_class')
         class_str = f' class="{html_class}"' if html_class else ''
         row_string += 2 * default_space + f'<{html_key}{class_str} bgcolor="{color}" title="{tooltip}"> {text_str}'\

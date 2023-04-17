@@ -1,17 +1,17 @@
 # Parameters file for Surveillance Bot
 datapath: "/data/SDS/"                    # SC3 Datapath
-networks: ["1Y", "HA"]                    # select networks, list or str
+networks: ["1Y", "HA", "MK"]              # select networks, list or str
 stations: "*"                             # select stations, list or str
 locations: "*"                            # select locations, list or str
-stations_blacklist: ["TEST", "EREA"]      # exclude these stations
+stations_blacklist: ["TEST", "EREA", "DOMV"]      # exclude these stations
 networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
-n_track: 300               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
+n_track: 360               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
 timespan: 3                # Check data of the recent x days
 verbosity: 0               # verbosity flag
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
-warn_count: False           # show number of warnings and errors in table
-min_sample: 3              # minimum samples for raising Warn/FAIL
+warn_count: False          # show number of warnings and errors in table
+min_sample: 5              # minimum samples for raising Warn/FAIL
 dt_thresh: [300, 1800]     # threshold (s) for timing delay colourisation (yellow/red)
 html_figures: True         # Create html figure directory and links
 reread_parameters: True    # reread parameters file (change parameters on runtime, not for itself/GUI refresh/datapath)
@@ -72,12 +72,12 @@ CHANNELS:
   EX2:
     unit: 1e-6
     name: "PowBox 230V/12V (V)"
-    ticks: [1, 5, 1]
+    ticks: [0, 5, 1]
     warn: [2, 3, 4, 4.5, 5]
   EX3:
     unit: 1e-6
     name: "PowBox Router/Charger (V)"
-    ticks: [1, 5, 1]
+    ticks: [0, 5, 1]
     warn: [2, 2.5, 3, 4, 5]
   VEI:
     unit: 1e-3
@@ -121,6 +121,12 @@ add_links:
   # for example: slmon: {"URL": "path/{nw}_{st}.html", "text": "link"}
   slmon: {"URL": "../slmon/{nw}_{st}.html", "text": "show"}
   24h-plot: {"URL": "../scheli/{nw}/{st}.png", "text": "plot"}
+
+# add station-independent links below html table (list items separated with -)
+add_global_links:
+  # for example: - {"text": "our homepage", "URL": "https://www.rub.de"}
+  - {"text": "show recent events on map",
+     "URL": "https://fdsnws.geophysik.ruhr-uni-bochum.de/map/?lat=39.5&lon=21&zoom=7&baselayer=mapnik"}
 
 # E-mail notifications
 EMAIL:

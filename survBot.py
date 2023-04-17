@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 from obspy import read, UTCDateTime, Stream
 from obspy.clients.filesystem.sds import Client
 
-from write_utils import get_html_text, get_html_row, html_footer, get_html_header, get_print_title_str, \
+from write_utils import get_html_text, get_html_link, get_html_row, html_footer, get_html_header, get_print_title_str, \
     init_html_table, finish_html_table, get_mail_html_header, add_html_image
 from utils import get_bg_color, modify_stream_for_plot, set_axis_yticks, set_axis_color, plot_axis_thresholds
 
@@ -120,8 +120,15 @@ class SurveillanceBot(object):
         self.networks_blacklist = self.parameters.get('networks_blacklist')
         self.refresh_period = self.parameters.get('interval')
         self.transform_parameters()
+
         add_links = self.parameters.get('add_links')
         self.add_links = add_links if add_links else {}
+
+        add_global_links = self.parameters.get('add_global_links')
+        # in case user forgets "-" in parameters file
+        if isinstance(add_global_links, dict):
+            add_global_links = [add_global_links]
+        self.add_global_links = add_global_links if add_global_links else []
 
     def transform_parameters(self):
         for key in ['networks', 'stations', 'locations', 'channels']:
@@ -495,6 +502,10 @@ class SurveillanceBot(object):
                     outfile.write(get_html_row(col_items))
 
                 outfile.write(finish_html_table())
+
+                for dct in self.add_global_links:
+                    link_str = get_html_link(dct.get('text'), dct.get('URL'))
+                    outfile.write(get_html_text(link_str))
 
                 outfile.write(get_html_text(self.status_message))
                 outfile.write(html_footer())
