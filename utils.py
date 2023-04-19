@@ -35,10 +35,10 @@ def get_bg_color(check_key, status, dt_thresh=None, hex=False):
 
 def get_color(key):
     # some GUI default colors
-    colors_dict = {'FAIL': (255, 50, 0, 255),
+    colors_dict = {'FAIL': (255, 85, 50, 255),
                    'NO DATA': (255, 255, 125, 255),
                    'WARN': (255, 255, 80, 255),
-                   'OK': (125, 255, 125, 255),
+                   'OK': (173, 255, 133, 255),
                    'undefined': (230, 230, 230, 255),
                    'disc': (255, 160, 40, 255),}
     return colors_dict.get(key)
@@ -60,7 +60,7 @@ def get_time_delay_color(dt, dt_thresh):
 
 
 def get_warn_color(count):
-    color = (min([255, 200 + count ** 2]), 255, 80, 255)
+    color = (min([255, 220 + count ** 2]), 255, 80, 255)
     return color
 
 

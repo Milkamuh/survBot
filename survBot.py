@@ -503,12 +503,21 @@ class SurveillanceBot(object):
 
                 outfile.write(finish_html_table())
 
+                # add optional links below html table
                 for dct in self.add_global_links:
                     link_str = get_html_link(dct.get('text'), dct.get('URL'))
                     outfile.write(get_html_text(link_str))
 
+                # add status message
                 outfile.write(get_html_text(self.status_message))
-                outfile.write(html_footer(footer_logo=self.parameters.get('html_logo')))
+
+                # write footer with optional logo
+                logo_file = self.parameters.get('html_logo')
+                if not os.path.isfile(logo_file):
+                    print(f'Specified file {logo_file} not found.')
+                    logo_file = None
+
+                outfile.write(html_footer(footer_logo=logo_file))
 
         except Exception as e:
             print(f'Could not write HTML table to {fnout}:')
