@@ -47,9 +47,15 @@ def finish_html_table():
     return '</table>\n'
 
 
-def html_footer():
-    footer = ['</body>',
-              '</html>\n']
+def html_footer(footer_logo=None):
+    footer = ['</body>']
+    if footer_logo:
+        logo_items = [f'<div class="footer">',
+                      f'  <img style="float: right; padding: 10px;" src="{footer_logo}" height=30px>',
+                      f'</div>']
+        footer += logo_items
+    footer.append('</html>\n')
+
     footer = _convert_to_textstring(footer)
     return footer
 

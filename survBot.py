@@ -508,7 +508,7 @@ class SurveillanceBot(object):
                     outfile.write(get_html_text(link_str))
 
                 outfile.write(get_html_text(self.status_message))
-                outfile.write(html_footer())
+                outfile.write(html_footer(footer_logo=self.parameters.get('html_logo')))
 
         except Exception as e:
             print(f'Could not write HTML table to {fnout}:')

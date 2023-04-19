@@ -128,6 +128,9 @@ add_global_links:
   - {"text": "show recent events on map",
      "URL": "https://fdsnws.geophysik.ruhr-uni-bochum.de/map/?lat=39.5&lon=21&zoom=7&baselayer=mapnik"}
 
+# html logo at page bottom
+html_logo: "figures/Logo_RUB_BLAU_rgb.png"
+
 # E-mail notifications
 EMAIL:
   mailserver: "localhost"
