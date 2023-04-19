@@ -2,11 +2,13 @@ body {
     background-color: #ffffff;
     place-items: center;
     text-align: center;
+    padding-bottom: 30px;
 }
 
 td {
     border-radius: 4px;
     padding: 0px;
+    white-space: nowrap;
 }
 
 th {
@@ -36,4 +38,13 @@ a:hover {
     0%		{ background-color: #ffcc00;}
     50%		{ background-color: #ff3200;}
     100%	{ background-color: #ffcc00;}
+}
+
+.footer {
+   position: fixed;
+   left: 0;
+   bottom: 0;
+   width: 100%;
+   height: 50px;
+   text-align: center;
 }
