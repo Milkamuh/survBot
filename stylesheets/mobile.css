@@ -3,37 +3,35 @@ body {
     place-items: center;
     text-align: center;
     padding-bottom: 30px;
-    font-family: "Helvetica", "sans-serif"
+    font-family: "Helvetica", "sans-serif";
 }
 
 table {
     position: relative
 }
 
-#managerTable {
-    max-height: 800px;
-    overflow: auto;
-}
-
 td {
-    border-radius: 4px;
+    border-radius: 3px;
     padding: 10px 2px;
     white-space: nowrap;
 }
 
 th {
-    background-color: #999;
-    border-radius: 4px;
+    background-color: #17365c;
+    color: #fff;
+    border-radius: 3px;
     padding: 10px, 2px;
+    position: sticky;
+    top: 0;
 }
 
-a:link {
+a:link, a:visited {
     background-color: #e8e8e8;
     color: #000;
     text-decoration: none;
     display: block;
-    border-radius: 4px;
-    border: 1px solid #bbb;
+    border-radius: 6px;
+    border: 1px solid #ccc;
 }
 
 a:hover {
@@ -49,9 +47,9 @@ a:hover {
     animation: blinkingBackground 2s infinite;
 }
 @keyframes blinkingBackground{
-    0%		{ background-color: #ffee00;}
+    0%		{ background-color: #ffcc00;}
     50%		{ background-color: #ff3200;}
-    100%	{ background-color: #ffee00;}
+    100%	{ background-color: #ffcc00;}
 }
 
 .footer {

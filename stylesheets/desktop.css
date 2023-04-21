@@ -3,27 +3,23 @@ body {
     place-items: center;
     text-align: center;
     padding-bottom: 30px;
-    font-family: "Helvetica", "sans-serif"
+    font-family: "Helvetica", "sans-serif";
 }
 
 table {
     position: relative
 }
 
-#managerTable {
-    max-height: 800px;
-    overflow: auto;
-}
-
 td {
-    border-radius: 4px;
+    border-radius: 2px;
     padding: 0px;
     white-space: nowrap;
 }
 
 th {
-    background-color: #999;
-    border-radius: 4px;
+    background-color: #17365c;
+    color: #fff;
+    border-radius: 2px;
     padding: 3px 1px;
     position: sticky;
     top: 0;
@@ -35,7 +31,7 @@ a:link, a:visited {
     text-decoration: none;
     display: block;
     border-radius: 4px;
-    border: 1px solid #bbb;
+    border: 1px solid #ccc;
 }
 
 a:hover {
