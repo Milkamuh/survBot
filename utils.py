@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from functools import partial
+
 import matplotlib
 import numpy as np
 
@@ -35,12 +37,18 @@ def get_bg_color(check_key, status, dt_thresh=None, hex=False):
 
 def get_color(key):
     # some GUI default colors
-    colors_dict = {'FAIL': (255, 50, 0, 255),
+    # colors_dict = {'FAIL': (255, 50, 0, 255),
+    #                'NO DATA': (255, 255, 125, 255),
+    #                'WARN': (255, 255, 80, 255),
+    #                'OK': (125, 255, 125, 255),
+    #                'undefined': (230, 230, 230, 255),
+    #                'disc': (255, 160, 40, 255),}
+    colors_dict = {'FAIL': (195, 29, 14, 255),
                    'NO DATA': (255, 255, 125, 255),
-                   'WARN': (255, 255, 80, 255),
-                   'OK': (125, 255, 125, 255),
-                   'undefined': (230, 230, 230, 255),
-                   'disc': (255, 160, 40, 255),}
+                   'WARN': (249, 238, 139, 255),
+                   'OK': (179, 219, 153, 255),
+                   'undefined': (240, 240, 240, 255),
+                   'disc': (126, 127, 131, 255), }
     return colors_dict.get(key)
 
 
@@ -60,7 +68,16 @@ def get_time_delay_color(dt, dt_thresh):
 
 
 def get_warn_color(count):
-    color = (min([255, 200 + count ** 2]), 255, 80, 255)
+    n_colors = 20
+    # r = np.linspace(158, 255, n_colors, dtype=int)
+    # g = np.linspace(255, 255, n_colors, dtype=int)
+    # b = np.linspace(114, 80, n_colors, dtype=int)
+    r = np.linspace(204, 249, n_colors, dtype=int)
+    g = np.linspace(226, 238, n_colors, dtype=int)
+    b = np.linspace(149, 139, n_colors, dtype=int)
+    pad = partial(np.pad, pad_width=(0, 100), mode='edge')
+    r, g, b = map(pad, [r, g, b])
+    color = (r[count], g[count], b[count], 255)
     return color
 
 
@@ -79,6 +96,24 @@ def get_temp_color(temp, vmin=-10, vmax=60, cmap='coolwarm'):
     val = (temp - vmin) / (vmax - vmin)
     rgba = [int(255 * c) for c in cmap(val)]
     return rgba
+
+
+def get_font_color(bg_color, hex=False):
+    if hex:
+        bg_color = matplotlib.colors.to_rgb(bg_color)
+    bg_color_hsv = matplotlib.colors.rgb_to_hsv(bg_color)
+    bg_color_hsl = hsv_to_hsl(bg_color_hsv)
+    font_color = (255, 255, 255, 255) if bg_color_hsl[2] < 0.6 else (0, 0, 0, 255)
+    if hex:
+        font_color = '#{:02x}{:02x}{:02x}'.format(*font_color[:3])
+    return font_color
+
+
+def hsv_to_hsl(hsv):
+    hue, saturation, value = hsv
+    lightness = value * (1 - saturation / 2)
+    saturation = 0 if lightness in (0, 1) else (value - lightness) / min(lightness, 1 - lightness)
+    return hue, saturation, lightness
 
 
 def modify_stream_for_plot(input_stream, parameters):

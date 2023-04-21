@@ -40,11 +40,11 @@ def get_mail_html_header():
 
 
 def init_html_table():
-    return '<table style="width:100%">\n'
+    return '<div id="managerTable" ><table style="width:100%">\n'
 
 
 def finish_html_table():
-    return '</table>\n'
+    return '</table></div>\n'
 
 
 def html_footer(footer_logo=None):
@@ -82,12 +82,13 @@ def get_html_row(items, html_key='td'):
         color = item.get('color')
         # check for black background of headers (shouldnt happen anymore)
         color = '#e6e6e6' if color == '#000000' else color
+        font_color = item.get('font_color')
         hyperlink = item.get('hyperlink')
         text_str = get_html_link(text, hyperlink) if hyperlink else text
         html_class = item.get('html_class')
         class_str = f' class="{html_class}"' if html_class else ''
-        row_string += 2 * default_space + f'<{html_key}{class_str} bgcolor="{color}" title="{tooltip}"> {text_str}'\
-                    + f'</{html_key}>\n'
+        row_string += 2 * default_space + f'<{html_key}{class_str} bgcolor="{color}" title="{tooltip}"' \
+                      + f'style="color:{font_color}"> {text_str}</{html_key}>\n'
     row_string += default_space + '</tr>\n'
     return row_string
 
