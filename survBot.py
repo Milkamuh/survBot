@@ -22,7 +22,7 @@ from obspy.clients.filesystem.sds import Client
 
 from write_utils import get_html_text, get_html_link, get_html_row, html_footer, get_html_header, get_print_title_str, \
     init_html_table, finish_html_table, get_mail_html_header, add_html_image
-from utils import get_bg_color, modify_stream_for_plot, set_axis_yticks, set_axis_color, plot_axis_thresholds
+from utils import get_bg_color, get_font_color, modify_stream_for_plot, set_axis_yticks, set_axis_color, plot_axis_thresholds
 
 try:
     import smtplib
@@ -441,7 +441,7 @@ class SurveillanceBot(object):
         fig_name = self.get_fig_path_rel(nwst_id)
         nwst_id_str = nwst_id.rstrip('.')
         col_items = [dict(text=nwst_id_str, color=default_color, hyperlink=fig_name if hyperlinks else None,
-                          bold=True, tooltip=f'Show plot of {nwst_id_str}')]
+                          bold=True, tooltip=f'Show plot of {nwst_id_str}', font_color='#000000')]
 
         for check_key in header:
             if check_key in self.keys:
@@ -453,6 +453,7 @@ class SurveillanceBot(object):
                 bg_color = get_bg_color(check_key, status, dt_thresh, hex=True)
                 if not bg_color:
                     bg_color = default_color
+                font_color = get_font_color(bg_color, hex=True)
 
                 # add degree sign for temp
                 if check_key == 'temp':
@@ -461,7 +462,7 @@ class SurveillanceBot(object):
 
                 html_class = self.get_html_class(hide_keys_mobile, status=status, check_key=check_key)
                 item = dict(text=str(message), tooltip=str(detailed_message), color=bg_color,
-                            html_class=html_class)
+                            html_class=html_class, font_color=font_color)
             elif check_key in self.add_links:
                 value = self.add_links.get(check_key).get('URL')
                 link_text = self.add_links.get(check_key).get('text')

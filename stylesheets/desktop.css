@@ -3,6 +3,16 @@ body {
     place-items: center;
     text-align: center;
     padding-bottom: 30px;
+    font-family: "Helvetica", "sans-serif"
+}
+
+table {
+    position: relative
+}
+
+#managerTable {
+    max-height: 800px;
+    overflow: auto;
 }
 
 td {
@@ -15,10 +25,12 @@ th {
     background-color: #999;
     border-radius: 4px;
     padding: 3px 1px;
+    position: sticky;
+    top: 0;
 }
 
 a:link, a:visited {
-    background-color: #ccc;
+    background-color: #e8e8e8;
     color: #000;
     text-decoration: none;
     display: block;
