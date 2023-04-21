@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from functools import partial
-
 import matplotlib
 import numpy as np
 
@@ -36,7 +34,7 @@ def get_bg_color(check_key, status, dt_thresh=None, hex=False):
 
 
 def get_color(key):
-    # some GUI default colors
+    # some old GUI default colors
     # colors_dict = {'FAIL': (255, 85, 50, 255),
     #                'NO DATA': (255, 255, 125, 255),
     #                'WARN': (255, 255, 80, 255),
@@ -45,8 +43,8 @@ def get_color(key):
     #                'disc': (255, 160, 40, 255),}
     colors_dict = {'FAIL': (195, 29, 14, 255),
                    'NO DATA': (255, 255, 125, 255),
-                   'WARN': (249, 238, 139, 255),
-                   'OK': (179, 219, 153, 255),
+                   'WARN': (250, 192, 63, 255),
+                   'OK': (185, 245, 145, 255),
                    'undefined': (240, 240, 240, 255),
                    'disc': (126, 127, 131, 255), }
     return colors_dict.get(key)
@@ -67,16 +65,11 @@ def get_time_delay_color(dt, dt_thresh):
     return get_color('FAIL')
 
 
-def get_warn_color(count):
-    #color = (min([255, 220 + count ** 2]), 255, 80, 255)
-    n_colors = 20
-    r = np.linspace(204, 249, n_colors, dtype=int)
-    g = np.linspace(226, 238, n_colors, dtype=int)
-    b = np.linspace(149, 139, n_colors, dtype=int)
-    pad = partial(np.pad, pad_width=(0, 100), mode='edge')
-    r, g, b = map(pad, [r, g, b])
-    color = (r[count], g[count], b[count], 255)
-    return color
+def get_warn_color(count, n_colors=20):
+    if count > n_colors:
+        count = -1
+    gradient = np.linspace((240, 245, 110, 255), (250, 192, 63, 255), n_colors, dtype=int)
+    return tuple(gradient[count])
 
 
 def get_mass_color(message):

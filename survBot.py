@@ -514,7 +514,7 @@ class SurveillanceBot(object):
 
                 # write footer with optional logo
                 logo_file = self.parameters.get('html_logo')
-                if not os.path.isfile(logo_file):
+                if not os.path.isfile(pjoin(self.outpath_html, logo_file)):
                     print(f'Specified file {logo_file} not found.')
                     logo_file = None
 
