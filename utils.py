@@ -66,7 +66,7 @@ def get_time_delay_color(dt, dt_thresh):
 
 
 def get_warn_color(count, n_colors=20):
-    if count > n_colors:
+    if count >= n_colors:
         count = -1
     gradient = np.linspace((240, 245, 110, 255), (250, 192, 63, 255), n_colors, dtype=int)
     return tuple(gradient[count])
