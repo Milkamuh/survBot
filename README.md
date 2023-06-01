@@ -1,6 +1,6 @@
 # survBot
 
-version: 0.1
+version: 0.2
 
 survBot is a small program used to track station quality channels of DSEBRA stations via PowBox output over SOH channels
  by analysing contents of a Seiscomp3 datapath.
@@ -40,8 +40,16 @@ The GUI can be loaded via
 python survBotGui.py
 ```
 
+## Version Changes
+- surveillance of mass, clock and gaps
+- individual mailing lists for different stations
+- html mail with recent status information
+- updated web page design
+- restructured parameter file
+- recognize if PBox is disconnected
+
 ## Staff
 
 Original author: M.Paffrath (marcel.paffrath@rub.de)
 
-November 2022
+June 2023

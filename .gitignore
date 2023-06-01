@@ -211,3 +211,5 @@ flycheck_*.el
 /network-security.data
 
 
+/__simulate_fail.json
+/mailing_list.yaml

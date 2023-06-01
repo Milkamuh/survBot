@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 
 import matplotlib
+import numpy as np
+
+from obspy import Stream
 
 
 def get_bg_color(check_key, status, dt_thresh=None, hex=False):
@@ -10,11 +13,16 @@ def get_bg_color(check_key, status, dt_thresh=None, hex=False):
         bg_color = get_time_delay_color(message, dt_thresh)
     elif check_key == 'temp':
         bg_color = get_temp_color(message)
+    elif check_key == 'mass':
+        bg_color = get_mass_color(message)
     else:
         if status.is_warn:
-            bg_color = get_color('WARNX')(status.count)
+            bg_color = get_warn_color(status.count)
         elif status.is_error:
-            bg_color = get_color('FAIL')
+            if status.connection_error:
+                bg_color = get_color('disc')
+            else:
+                bg_color = get_color('FAIL')
         else:
             bg_color = get_color(message)
     if not bg_color:
@@ -26,23 +34,49 @@ def get_bg_color(check_key, status, dt_thresh=None, hex=False):
 
 
 def get_color(key):
-    # some GUI default colors
-    colors_dict = {'FAIL': (255, 50, 0, 255),
+    # some old GUI default colors
+    # colors_dict = {'FAIL': (255, 85, 50, 255),
+    #                'NO DATA': (255, 255, 125, 255),
+    #                'WARN': (255, 255, 80, 255),
+    #                'OK': (173, 255, 133, 255),
+    #                'undefined': (230, 230, 230, 255),
+    #                'disc': (255, 160, 40, 255),}
+    colors_dict = {'FAIL': (195, 29, 14, 255),
                    'NO DATA': (255, 255, 125, 255),
-                   'WARN': (255, 255, 80, 255),
-                   'WARNX': lambda x: (min([255, 200 + x ** 2]), 255, 80, 255),
-                   'OK': (125, 255, 125, 255),
-                   'undefined': (230, 230, 230, 255)}
+                   'WARN': (250, 192, 63, 255),
+                   'OK': (185, 245, 145, 255),
+                   'undefined': (240, 240, 240, 255),
+                   'disc': (126, 127, 131, 255), }
     return colors_dict.get(key)
+
+
+def get_color_mpl(key):
+    color_tup = get_color(key)
+    return np.array([color/255. for color in color_tup])
 
 
 def get_time_delay_color(dt, dt_thresh):
     """ Set color of time delay after thresholds specified in self.dt_thresh """
-    if dt < dt_thresh[0]:
-        return get_color('OK')
-    elif dt_thresh[0] <= dt < dt_thresh[1]:
-        return get_color('WARN')
+    if isinstance(dt, type(dt_thresh[0])):
+        if dt < dt_thresh[0]:
+            return get_color('OK')
+        elif dt_thresh[0] <= dt < dt_thresh[1]:
+            return get_color('WARN')
     return get_color('FAIL')
+
+
+def get_warn_color(count, n_colors=20):
+    if count >= n_colors:
+        count = -1
+    gradient = np.linspace((240, 245, 110, 255), (250, 192, 63, 255), n_colors, dtype=int)
+    return tuple(gradient[count])
+
+
+def get_mass_color(message):
+    # can change this to something else if wanted. This way it always returns get_color (without warn count)
+    if isinstance(message, (float, int)):
+        return get_color('OK')
+    return get_color(message)
 
 
 def get_temp_color(temp, vmin=-10, vmax=60, cmap='coolwarm'):
@@ -55,29 +89,61 @@ def get_temp_color(temp, vmin=-10, vmax=60, cmap='coolwarm'):
     return rgba
 
 
-def modify_stream_for_plot(st, parameters):
+def get_font_color(bg_color, hex=False):
+    if hex:
+        bg_color = matplotlib.colors.to_rgb(bg_color)
+    bg_color_hsv = matplotlib.colors.rgb_to_hsv(bg_color)
+    bg_color_hsl = hsv_to_hsl(bg_color_hsv)
+    font_color = (255, 255, 255, 255) if bg_color_hsl[2] < 0.6 else (0, 0, 0, 255)
+    if hex:
+        font_color = '#{:02x}{:02x}{:02x}'.format(*font_color[:3])
+    return font_color
+
+
+def hsv_to_hsl(hsv):
+    hue, saturation, value = hsv
+    lightness = value * (1 - saturation / 2)
+    saturation = 0 if lightness in (0, 1) else (value - lightness) / min(lightness, 1 - lightness)
+    return hue, saturation, lightness
+
+
+def modify_stream_for_plot(input_stream, parameters):
     """ copy (if necessary) and modify stream for plotting """
-    ch_units = parameters.get('CHANNEL_UNITS')
-    ch_transf = parameters.get('CHANNEL_TRANSFORM')
 
-    # if either of both are defined make copy
-    if ch_units or ch_transf:
-        st = st.copy()
+    # make a copy
+    st = Stream()
 
-    # modify trace for plotting by multiplying unit factor (e.g. 1e-3 mV to V)
-    if ch_units:
-        for tr in st:
-            channel = tr.stats.channel
-            unit_factor = ch_units.get(channel)
-            if unit_factor:
-                tr.data = tr.data * float(unit_factor)
-    # modify trace for plotting by other arithmetic expressions
-    if ch_transf:
-        for tr in st:
-            channel = tr.stats.channel
-            transf = ch_transf.get(channel)
-            if transf:
-                tr.data = transform_trace(tr.data, transf)
+    channels_dict = parameters.get('CHANNELS')
+
+    # iterate over all channels and put them to new stream in order
+    for index, ch_tup in enumerate(channels_dict.items()):
+        # unpack tuple from items
+        channel, channel_dict = ch_tup
+
+        # get correct channel from stream
+        st_sel = input_stream.select(channel=channel)
+        # in case there are != 1 there is ambiguity
+        if not len(st_sel) == 1:
+            continue
+
+        # make a copy to not modify original stream!
+        tr = st_sel[0].copy()
+
+        # multiply with conversion factor for unit
+        unit_factor = channel_dict.get('unit')
+        if unit_factor:
+            tr.data = tr.data * float(unit_factor)
+
+        # apply transformations if provided
+        transform = channel_dict.get('transform')
+        if transform:
+            tr.data = transform_trace(tr.data, transform)
+
+        # modify trace id to maintain plotting order
+        name = channel_dict.get('name')
+        tr.id = f'{index + 1}: {name} - {tr.id}'
+
+        st.append(tr)
 
     return st
 
@@ -104,13 +170,11 @@ def transform_trace(data, transf):
     return data
 
 
-def trace_ylabels(fig, parameters, verbosity=0):
+def set_axis_ylabels(fig, parameters, verbosity=0):
     """
     Adds channel names to y-axis if defined in parameters.
-    Can get mixed up if channel order in stream and channel names defined in parameters.yaml differ, but it is
-    difficult to assess the correct order from Obspy plotting routing.
     """
-    names = parameters.get('channel_names')
+    names = [channel.get('name') for channel in parameters.get('CHANNELS').values()]
     if not names: # or not len(st.traces):
         return
     if not len(names) == len(fig.axes):
@@ -122,13 +186,20 @@ def trace_ylabels(fig, parameters, verbosity=0):
             ax.set_ylabel(channel_name)
 
 
-def trace_yticks(fig, parameters, verbosity=0):
+def set_axis_color(fig, color='0.8'):
+    """
+    Set all axes of figure to specific color
+    """
+    for ax in fig.axes:
+        for key in ['bottom', 'top', 'right', 'left']:
+            ax.spines[key].set_color(color)
+
+
+def set_axis_yticks(fig, parameters, verbosity=0):
     """
     Adds channel names to y-axis if defined in parameters.
-    Can get mixed up if channel order in stream and channel names defined in parameters.yaml differ, but it is
-    difficult to assess the correct order from Obspy plotting routing.
     """
-    ticks = parameters.get('CHANNEL_TICKS')
+    ticks = [channel.get('ticks') for channel in parameters.get('CHANNELS').values()]
     if not ticks:
         return
     if not len(ticks) == len(fig.axes):
@@ -140,6 +211,38 @@ def trace_yticks(fig, parameters, verbosity=0):
             continue
         ymin, ymax, step = ytick_tripple
 
-        yticks = list(range(ymin, ymax + step, step))
+        yticks = list(np.arange(ymin, ymax + step, step))
         ax.set_yticks(yticks)
-        ax.set_ylim(ymin - step, ymax + step)
+        ax.set_ylim(ymin - 0.33 * step, ymax + 0.33 * step)
+
+
+def plot_axis_thresholds(fig, parameters, verbosity=0):
+    """
+    Adds channel thresholds (warn, fail) to y-axis if defined in parameters.
+    """
+    if verbosity > 0:
+        print('Plotting trace thresholds')
+
+    keys_colors = {'warn': dict(color=0.8 * get_color_mpl('WARN'), linestyle=(0, (5, 10)), alpha=0.5, linewidth=0.7),
+                   'fail': dict(color=0.8 * get_color_mpl('FAIL'), linestyle='solid', alpha=0.5, linewidth=0.7)}
+
+    for key, kwargs in keys_colors.items():
+        channel_threshold_list = [channel.get(key) for channel in parameters.get('CHANNELS').values()]
+        if not channel_threshold_list:
+            continue
+        plot_threshold_lines(fig, channel_threshold_list, parameters, **kwargs)
+
+
+def plot_threshold_lines(fig, channel_threshold_list, parameters, **kwargs):
+    for channel_thresholds, ax in zip(channel_threshold_list, fig.axes):
+        if not channel_thresholds:
+            continue
+
+        if not isinstance(channel_thresholds, (list, tuple)):
+            channel_thresholds = [channel_thresholds]
+
+        for warn_thresh in channel_thresholds:
+            if isinstance(warn_thresh, str):
+                warn_thresh = parameters.get('THRESHOLDS').get(warn_thresh)
+            if type(warn_thresh in (float, int)):
+                ax.axhline(warn_thresh, **kwargs)

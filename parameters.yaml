@@ -1,18 +1,17 @@
 # Parameters file for Surveillance Bot
 datapath: "/data/SDS/"                    # SC3 Datapath
-networks: ["1Y", "HA"]                    # select networks, list or str
+networks: ["1Y", "HA", "MK"]              # select networks, list or str
 stations: "*"                             # select stations, list or str
 locations: "*"                            # select locations, list or str
-channels: ["EX1", "EX2", "EX3", "VEI"]    # Specify SOH channels, currently supported EX[1-3] and VEI
-stations_blacklist: ["TEST", "EREA"]      # exclude these stations
+stations_blacklist: ["TEST", "EREA", "DOMV"]      # exclude these stations
 networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
-n_track: 300               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
-timespan: 7                # Check data of the recent x days
+n_track: 360               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
+timespan: 3                # Check data of the recent x days
 verbosity: 0               # verbosity flag
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
-warn_count: False           # show number of warnings and errors in table
-min_sample: 3              # minimum samples for raising Warn/FAIL
+warn_count: False          # show number of warnings and errors in table
+min_sample: 5              # minimum samples for raising Warn/FAIL
 dt_thresh: [300, 1800]     # threshold (s) for timing delay colourisation (yellow/red)
 html_figures: True         # Create html figure directory and links
 reread_parameters: True    # reread parameters file (change parameters on runtime, not for itself/GUI refresh/datapath)
@@ -41,8 +40,78 @@ THRESHOLDS:
   pb_thresh: 0.2               # Threshold for PowBox Voltage check +/- (V)
   max_temp: 50                 # max temperature for temperature warning
   low_volt: 12                 # min voltage for low voltage warning
-  high_volt: 14.8               # max voltage for over voltage warning
+  high_volt: 14.8              # max voltage for over voltage warning
   unclassified: 5              # min voltage samples not classified for warning
+  max_vm_warn: 1.5             # threshold for mass offset (warn), fail)
+  max_vm_fail: 2.5             # threshold for mass offset (warn), fail)
+  clockquality_warn: 90        # warn level - clock quality ranges from 0 % to 100 % with 100 % being the best level
+  clockquality_fail: 70        # fail level
+  min_gap: 0.1                 # minimum for gap declaration, should be > 0 [s]
+
+
+# ---------------------------------- Specification of input channels ---------------------------------------------------
+# Currently supported: EX[1-3], VEI, VM[1-3], LCQ
+#
+# For each channel a factor 'unit' for unit conversion (e.g. to SI) can be provided, as well as a 'name'
+# and 'ticks' [ymin, ymax, ystep] for plotting.
+# 'warn' and 'fail' plot horizontal lines in corresponding colors (can be str in TRESHOLDS, int/float or iterable)
+#
+# 'transform' can be provided for plotting to perform arithmetic operations in given order, e.g.:
+#  transform: - ["*", 20]
+#             - ["-", 20]
+#  --> PBox EX1 V to deg C: 20 * x -20
+CHANNELS:
+  EX1:
+    unit: 1e-6
+    name: "PowBox Temperature (°C)"
+    ticks: [-10, 50, 10]
+    transform:
+      - ["*", 20]
+      - ["-", 20]
+    warn: "max_temp"
+  EX2:
+    unit: 1e-6
+    name: "PowBox 230V/12V (V)"
+    ticks: [0, 5, 1]
+    warn: [2, 3, 4, 4.5, 5]
+  EX3:
+    unit: 1e-6
+    name: "PowBox Router/Charger (V)"
+    ticks: [0, 5, 1]
+    warn: [2, 2.5, 3, 4, 5]
+  VEI:
+    unit: 1e-3
+    name: "Datalogger (V)"
+    ticks: [9, 15, 1]
+    warn: ["low_volt", "high_volt"]
+    fail: 10.5
+  VM1:
+    unit: 1e-6
+    name: "Mass position W (V)"
+    ticks: [-2.5, 2.5, 1]
+    warn: [-1.5, 1.5]
+    fail: [-2.5, 2.5]
+  VM2:
+    unit: 1e-6
+    name: "Mass position V (V)"
+    ticks: [-2.5, 2.5, 1]
+    warn: [-1.5, 1.5]
+    fail: [-2.5, 2.5]
+  VM3:
+    unit: 1e-6
+    name: "Mass position U (V)"
+    ticks: [-2.5, 2.5, 1]
+    warn: [-1.5, 1.5]
+    fail: [-2.5, 2.5]
+  LCQ:
+    name: "Clock quality (%)"
+    ticks: [0, 100, 20]
+    warn: "clockquality_warn"
+    fail: "clockquality_fail"
+
+# specify data channels (can be additional to the above). From these channels only headers will be read
+data_channels: ["HHZ", "HHN", "HHE"]
+
 
 # ---------------------------------------- OPTIONAL PARAMETERS ---------------------------------------------------------
 
@@ -53,6 +122,15 @@ add_links:
   slmon: {"URL": "../slmon/{nw}_{st}.html", "text": "show"}
   24h-plot: {"URL": "../scheli/{nw}/{st}.png", "text": "plot"}
 
+# add station-independent links below html table (list items separated with -)
+add_global_links:
+  # for example: - {"text": "our homepage", "URL": "https://www.rub.de"}
+  - {"text": "show recent events on map",
+     "URL": "https://fdsnws.geophysik.ruhr-uni-bochum.de/map/?lat=39.5&lon=21&zoom=7&baselayer=mapnik"}
+
+# html logo at page bottom (path relative to html directory)
+html_logo: "figures/Logo_RUB_BLAU_rgb.png"
+
 # E-mail notifications
 EMAIL:
   mailserver: "localhost"
@@ -60,25 +138,5 @@ EMAIL:
   sender: "webmaster@geophysik.ruhr-uni-bochum.de" # mail sender
   stations_blacklist: ['GR33']                     # do not send emails for specific stations
   networks_blacklist: []                           # do not send emails for specific network
-
-# names for plotting of the above defined parameter "channels" in the same order
-channel_names: ["Temperature (°C)", "230V/12V Status (V)", "Router/Charger State (V)", "Logger Voltage (V)"]
-# specify y-ticks (and ylims) giving, (ymin, ymax, step) for each of the above channels (0: default)
-CHANNEL_TICKS:
-  - [-10, 50, 10]
-  - [1, 5, 1]
-  - [1, 5, 1]
-  - [9, 15, 1]
-
-# Factor for channel to SI-units (for plotting)
-CHANNEL_UNITS:
-  EX1: 1e-6
-  EX2: 1e-6
-  EX3: 1e-6
-  VEI: 1e-3
-
-# Transform channel for plotting, perform arithmetic operations in given order, e.g.: PBox EX1 V to deg C: 20 * x -20
-CHANNEL_TRANSFORM:
-  EX1:
-    - ["*", 20]
-    - ["-", 20]
+  # specify recipients for single stations in a yaml: key = email-address, val = station list (e.g. [1Y.GR01, 1Y.GR02])
+  external_mail_list: "mailing_list.yaml"
