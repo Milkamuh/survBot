@@ -402,7 +402,10 @@ class SurveillanceBot(object):
                 for ax in fig.axes:
                     ax.grid(True, alpha=0.1)
                 for fnout in fnames_out:
-                    fig.savefig(fnout, dpi=150., bbox_inches='tight')
+                    try:
+                        fig.savefig(fnout, dpi=150., bbox_inches='tight')
+                    except IOError as e:
+                        print('WARNING: Could not save figure with IO error. Disk quota exceeded?\nError message: {e}')
                 # if needed save figure as virtual object (e.g. for mailing)
                 if save_bytes:
                     fnames_out[-1].seek(0)
