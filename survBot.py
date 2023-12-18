@@ -400,19 +400,19 @@ class SurveillanceBot(object):
         st = self.data.get(get_full_seed_id(nwst_id))
         if st:
             # TODO: this section failed once, adding try-except block for analysis and to prevent program from crashing
-            #try:
-            endtime = UTCDateTime()
-            starttime = endtime - self.parameters.get('timespan') * 24 * 3600
-            st = modify_stream_for_plot(st, parameters=self.parameters)
-            st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full',
-                    starttime=starttime, endtime=endtime)
-            # set_axis_ylabels(fig, self.parameters)
-            set_axis_yticks(fig, self.parameters)
-            set_axis_color(fig)
-            plot_axis_thresholds(fig, self.parameters)
-            # except Exception as e:
-            #     logging.error(f'Could not generate plot for {nwst_id}: {e}')
-            #     logging.debug(traceback.format_exc())
+            try:
+                endtime = UTCDateTime()
+                starttime = endtime - self.parameters.get('timespan') * 24 * 3600
+                st = modify_stream_for_plot(st, parameters=self.parameters)
+                st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full',
+                        starttime=starttime, endtime=endtime)
+                # set_axis_ylabels(fig, self.parameters)
+                set_axis_yticks(fig, self.parameters)
+                set_axis_color(fig)
+                plot_axis_thresholds(fig, self.parameters)
+            except Exception as e:
+                logging.error(f'Could not generate plot for {nwst_id}: {e}')
+                logging.error(traceback.format_exc())
             if len(fig.axes) > 0:
                 ax = fig.axes[0]
                 ax.set_title(f'Plot refreshed at (UTC) {UTCDateTime.now().strftime("%Y-%m-%d %H:%M:%S")}. '
