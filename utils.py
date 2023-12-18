@@ -187,13 +187,15 @@ def set_axis_ylabels(fig, parameters):
             ax.set_ylabel(channel_name)
 
 
-def set_axis_color(fig, color='0.8'):
+def set_axis_color(fig, color='0.8', shade_color='0.95'):
     """
-    Set all axes of figure to specific color
+    Set all axes (frame) of figure to specific color. Shade every second axis.
     """
-    for ax in fig.axes:
+    for i, ax in enumerate(fig.axes):
         for key in ['bottom', 'top', 'right', 'left']:
             ax.spines[key].set_color(color)
+        if i % 2:
+            ax.set_facecolor(shade_color)
 
 
 def set_axis_yticks(fig, parameters):
@@ -258,7 +260,7 @@ def get_warn_states_pbox(soh_key: str, parameters: dict) -> list:
     return [key for key in pb_dict.keys() if key > 1]
 
 
-def annotate_voltage_states(ax, parameters, pb_key):
+def annotate_voltage_states(ax, parameters, pb_key, color='0.75'):
     for voltage, voltage_dict in parameters.get('POWBOX').get(pb_key).items():
         if float(voltage) < 1:
             continue
@@ -269,5 +271,5 @@ def annotate_voltage_states(ax, parameters, pb_key):
                     out_string += ' | '
                 out_string += f'{key}: {val}'
 
-        ax.annotate(out_string, (ax.get_xlim()[-1], voltage), color='0.8', fontsize='xx-small',
+        ax.annotate(out_string, (ax.get_xlim()[-1], voltage), color=color, fontsize='xx-small',
                     horizontalalignment='right')
