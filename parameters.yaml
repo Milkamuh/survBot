@@ -8,7 +8,8 @@ networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
 n_track: 360               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
 timespan: 3                # Check data of the recent x days
-verbosity: 0               # verbosity flag
+verbosity: 0               # verbosity flag for program console output (not logging)
+logging_level: WARN        # set logging level (info, warning, debug)
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
 warn_count: False          # show number of warnings and errors in table
 min_sample: 5              # minimum samples for raising Warn/FAIL
@@ -55,6 +56,7 @@ THRESHOLDS:
 # For each channel a factor 'unit' for unit conversion (e.g. to SI) can be provided, as well as a 'name'
 # and 'ticks' [ymin, ymax, ystep] for plotting.
 # 'warn' and 'fail' plot horizontal lines in corresponding colors (can be str in TRESHOLDS, int/float or iterable)
+# keyword "pb_SOH2" or "pb_SOH3" can be used to extract warning values from above POWBOX parameter definition
 #
 # 'transform' can be provided for plotting to perform arithmetic operations in given order, e.g.:
 #  transform: - ["*", 20]
@@ -73,12 +75,12 @@ CHANNELS:
     unit: 1e-6
     name: "PowBox 230V/12V (V)"
     ticks: [0, 5, 1]
-    warn: [2, 3, 4, 4.5, 5]
+    warn: "pb_SOH2"
   EX3:
     unit: 1e-6
     name: "PowBox Router/Charger (V)"
     ticks: [0, 5, 1]
-    warn: [2, 2.5, 3, 4, 5]
+    warn: "pb_SOH3"
   VEI:
     unit: 1e-3
     name: "Datalogger (V)"
@@ -121,6 +123,7 @@ add_links:
   # for example: slmon: {"URL": "path/{nw}_{st}.html", "text": "link"}
   slmon: {"URL": "../slmon/{nw}_{st}.html", "text": "show"}
   24h-plot: {"URL": "../scheli/{nw}/{st}.png", "text": "plot"}
+  ppsd: {"URL": "../ppsd/{nw}.{st}.html", "text": "show"}
 
 # add station-independent links below html table (list items separated with -)
 add_global_links:

@@ -234,6 +234,10 @@ def plot_axis_thresholds(fig, parameters):
 
 def plot_threshold_lines(fig, channel_threshold_list, parameters, **kwargs):
     for channel_thresholds, ax in zip(channel_threshold_list, fig.axes):
+        if channel_thresholds in ['pb_SOH2', 'pb_SOH3']:
+            annotate_voltage_states(ax, parameters, channel_thresholds)
+            channel_thresholds = get_warn_states_pbox(channel_thresholds, parameters)
+
         if not channel_thresholds:
             continue
 
@@ -245,3 +249,25 @@ def plot_threshold_lines(fig, channel_threshold_list, parameters, **kwargs):
                 warn_thresh = parameters.get('THRESHOLDS').get(warn_thresh)
             if isinstance(warn_thresh, (float, int)):
                 ax.axhline(warn_thresh, **kwargs)
+
+
+def get_warn_states_pbox(soh_key: str, parameters: dict) -> list:
+    pb_dict = parameters.get('POWBOX').get(soh_key)
+    if not pb_dict:
+        return []
+    return [key for key in pb_dict.keys() if key > 1]
+
+
+def annotate_voltage_states(ax, parameters, pb_key):
+    for voltage, voltage_dict in parameters.get('POWBOX').get(pb_key).items():
+        if float(voltage) < 1:
+            continue
+        out_string = ''
+        for key, val in voltage_dict.items():
+            if val != 'OK':
+                if out_string:
+                    out_string += ' | '
+                out_string += f'{key}: {val}'
+
+        ax.annotate(out_string, (ax.get_xlim()[-1], voltage), color='0.8', fontsize='xx-small',
+                    horizontalalignment='right')
