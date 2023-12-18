@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import logging
+
 import matplotlib
 import numpy as np
 
@@ -170,7 +172,7 @@ def transform_trace(data, transf):
     return data
 
 
-def set_axis_ylabels(fig, parameters, verbosity=0):
+def set_axis_ylabels(fig, parameters):
     """
     Adds channel names to y-axis if defined in parameters.
     """
@@ -178,8 +180,7 @@ def set_axis_ylabels(fig, parameters, verbosity=0):
     if not names: # or not len(st.traces):
         return
     if not len(names) == len(fig.axes):
-        if verbosity:
-            print('Mismatch in axis and label lengths. Not adding plot labels')
+        logging.info('Mismatch in axis and label lengths. Not adding plot labels')
         return
     for channel_name, ax in zip(names, fig.axes):
         if channel_name:
@@ -195,7 +196,7 @@ def set_axis_color(fig, color='0.8'):
             ax.spines[key].set_color(color)
 
 
-def set_axis_yticks(fig, parameters, verbosity=0):
+def set_axis_yticks(fig, parameters):
     """
     Adds channel names to y-axis if defined in parameters.
     """
@@ -203,8 +204,7 @@ def set_axis_yticks(fig, parameters, verbosity=0):
     if not ticks:
         return
     if not len(ticks) == len(fig.axes):
-        if verbosity:
-            print('Mismatch in axis tick and label lengths. Not changing plot ticks.')
+        logging.info('Mismatch in axis tick and label lengths. Not changing plot ticks.')
         return
     for ytick_tripple, ax in zip(ticks, fig.axes):
         if not ytick_tripple:
@@ -216,12 +216,11 @@ def set_axis_yticks(fig, parameters, verbosity=0):
         ax.set_ylim(ymin - 0.33 * step, ymax + 0.33 * step)
 
 
-def plot_axis_thresholds(fig, parameters, verbosity=0):
+def plot_axis_thresholds(fig, parameters):
     """
     Adds channel thresholds (warn, fail) to y-axis if defined in parameters.
     """
-    if verbosity > 0:
-        print('Plotting trace thresholds')
+    logging.info('Plotting trace thresholds')
 
     keys_colors = {'warn': dict(color=0.8 * get_color_mpl('WARN'), linestyle=(0, (5, 10)), alpha=0.5, linewidth=0.7),
                    'fail': dict(color=0.8 * get_color_mpl('FAIL'), linestyle='solid', alpha=0.5, linewidth=0.7)}

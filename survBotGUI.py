@@ -11,6 +11,8 @@ import os
 import sys
 import traceback
 
+import logging
+
 try:
     from PySide2 import QtGui, QtCore, QtWidgets
 except ImportError:
@@ -41,7 +43,7 @@ try:
     from rest_api.rest_api_utils import get_last_messages, send_message, get_default_params
     sms_funcs = True
 except ImportError:
-    print('Could not load rest_api utils, SMS functionality disabled.')
+    logging.warning('Could not load rest_api utils, SMS functionality disabled.')
     sms_funcs = False
 
 deg_str = '\N{DEGREE SIGN}C'
@@ -54,10 +56,9 @@ class Thread(QtCore.QThread):
     """
     update = QtCore.Signal()
 
-    def __init__(self, parent, runnable, verbosity=0):
+    def __init__(self, parent, runnable):
         super(Thread, self).__init__(parent=parent)
         self.setParent(parent)
-        self.verbosity = verbosity
         self.runnable = runnable
         self.is_active = True
 
@@ -69,11 +70,10 @@ class Thread(QtCore.QThread):
             self.update.emit()
         except Exception as e:
             self.is_active = False
-            print(e)
-            print(traceback.format_exc())
+            logging.error(e)
+            logging.debug(traceback.format_exc())
         finally:
-            if self.verbosity > 0:
-                print(f'Time for Thread execution: {UTCDateTime() - t0}')
+            logging.info(f'Time for Thread execution: {UTCDateTime() - t0}')
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -195,7 +195,7 @@ class MainWindow(QtWidgets.QMainWindow):
         station = nwst_id.split('.')[1]
         iccid = get_station_iccid(station)
         if not iccid:
-            print('Could not find iccid for station', nwst_id)
+            logging.info(f'Could not find iccid for station: {nwst_id}')
             return
         sms_widget = ReadSMSWidget(parent=self, iccid=iccid)
         sms_widget.setWindowTitle(f'Recent SMS of station: {nwst_id}')

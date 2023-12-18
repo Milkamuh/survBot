@@ -7,6 +7,7 @@ __author__ = 'Marcel Paffrath'
 import os
 import io
 import copy
+import logging
 import traceback
 import yaml
 import argparse
@@ -31,25 +32,45 @@ try:
 
     mail_functionality = True
 except ImportError:
-    print('Could not import smtplib or mail. Disabled sending mails.')
+    logging.warning('Could not import smtplib or mail. Disabled sending mails.')
     mail_functionality = False
 
 pjoin = os.path.join
 UP = "\x1B[{length}A"
 CLR = "\x1B[0K"
-deg_str = '\N{DEGREE SIGN}C'
+DEG_STR = '\N{DEGREE SIGN}C'
 
 
-def read_yaml(file_path, n_read=3):
+def read_yaml(file_path: str, n_read: int = 3) -> dict:
     for index in range(n_read):
         try:
             with open(file_path, "r") as f:
                 params = yaml.safe_load(f)
+            set_logging_level(params)
         except Exception as e:
-            print(f'Could not read parameters file: {e}.\nWill try again {n_read - index - 1} time(s).')
+            logging.warning(f'Could not read parameters file: {e}.\nWill try again {n_read - index - 1} time(s).')
             time.sleep(10)
             continue
         return params
+
+
+def set_logging_level(params: dict) -> None:
+    logging_levels = {'info': logging.INFO,
+                      'warning': logging.WARNING,
+                      'warn': logging.WARNING,
+                      'debug': logging.DEBUG,
+                      'error': logging.ERROR,
+                      'critical': logging.CRITICAL}
+    logging_level_str = params.get('logging_level')
+    if not logging_level_str:
+        logging.warning('Could not set logging level. Parameter not set')
+        return
+    if not isinstance(logging_level_str, str):
+        logging.warning(
+            f'Could not set logging level. Parameter logging_level = {logging_level_str} could not be interpreted.')
+        return
+    logging_level = logging_levels.get(logging_level_str.lower())
+    logging.basicConfig(level=logging_level)
 
 
 def nsl_from_id(nwst_id):
@@ -115,7 +136,6 @@ class SurveillanceBot(object):
         self.parameters['channels'] = channels
         self.reread_parameters = self.parameters.get('reread_parameters')
         self.dt_thresh = [int(val) for val in self.parameters.get('dt_thresh')]
-        self.verbosity = self.parameters.get('verbosity')
         self.stations_blacklist = self.parameters.get('stations_blacklist')
         self.networks_blacklist = self.parameters.get('networks_blacklist')
         self.refresh_period = self.parameters.get('interval')
@@ -196,8 +216,7 @@ class SurveillanceBot(object):
         for filename in self.filenames:
             # if file already read and last modification time is the same as of last read operation: continue
             if self.filenames_read_last_modif.get(filename) == os.path.getmtime(filename):
-                if self.verbosity > 0:
-                    print('Continue on file', filename)
+                logging.info(f'Continue on file {filename}')
                 continue
             try:
                 # read only header of wf_data
@@ -207,7 +226,7 @@ class SurveillanceBot(object):
                     st_new = read(filename, dtype=float)
                 self.filenames_read_last_modif[filename] = os.path.getmtime(filename)
             except Exception as e:
-                print(f'Could not read file {filename}:', e)
+                logging.warning(f'Could not read file {filename}: {e}')
                 continue
             self.dataStream += st_new
         self.gaps = self.dataStream.get_gaps(min_gap=self.parameters['THRESHOLDS'].get('min_gap'))
@@ -234,8 +253,7 @@ class SurveillanceBot(object):
             if stream:
                 nsl = nsl_from_id(nwst_id)
                 station_qc = StationQC(self, stream, nsl, self.parameters, self.keys, qc_starttime,
-                                       self.verbosity, print_func=self.print,
-                                       status_track=self.status_track.get(nwst_id))
+                                       print_func=self.print, status_track=self.status_track.get(nwst_id))
                 analysis_print_result = station_qc.return_print_analysis()
                 station_dict = station_qc.return_analysis()
             else:
@@ -382,19 +400,19 @@ class SurveillanceBot(object):
         st = self.data.get(get_full_seed_id(nwst_id))
         if st:
             # TODO: this section failed once, adding try-except block for analysis and to prevent program from crashing
-            try:
-                endtime = UTCDateTime()
-                starttime = endtime - self.parameters.get('timespan') * 24 * 3600
-                st = modify_stream_for_plot(st, parameters=self.parameters)
-                st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full',
-                        starttime=starttime, endtime=endtime)
-                # set_axis_ylabels(fig, self.parameters, self.verbosity)
-                set_axis_yticks(fig, self.parameters, self.verbosity)
-                set_axis_color(fig)
-                plot_axis_thresholds(fig, self.parameters, self.verbosity)
-            except Exception as e:
-                print(f'Could not generate plot for {nwst_id}:')
-                print(traceback.format_exc())
+            #try:
+            endtime = UTCDateTime()
+            starttime = endtime - self.parameters.get('timespan') * 24 * 3600
+            st = modify_stream_for_plot(st, parameters=self.parameters)
+            st.plot(fig=fig, show=False, draw=False, block=False, equal_scale=False, method='full',
+                    starttime=starttime, endtime=endtime)
+            # set_axis_ylabels(fig, self.parameters)
+            set_axis_yticks(fig, self.parameters)
+            set_axis_color(fig)
+            plot_axis_thresholds(fig, self.parameters)
+            # except Exception as e:
+            #     logging.error(f'Could not generate plot for {nwst_id}: {e}')
+            #     logging.debug(traceback.format_exc())
             if len(fig.axes) > 0:
                 ax = fig.axes[0]
                 ax.set_title(f'Plot refreshed at (UTC) {UTCDateTime.now().strftime("%Y-%m-%d %H:%M:%S")}. '
@@ -405,7 +423,7 @@ class SurveillanceBot(object):
                     try:
                         fig.savefig(fnout, dpi=150., bbox_inches='tight')
                     except IOError as e:
-                        print('WARNING: Could not save figure with IO error. Disk quota exceeded?\nError message: {e}')
+                        logging.warning('Could not save figure with IO error. Disk quota exceeded?\nError message: {e}')
                 # if needed save figure as virtual object (e.g. for mailing)
                 if save_bytes:
                     fnames_out[-1].seek(0)
@@ -461,7 +479,7 @@ class SurveillanceBot(object):
                 # add degree sign for temp
                 if check_key == 'temp':
                     if not type(message) in [str]:
-                        message = str(message) + deg_str
+                        message = str(message) + DEG_STR
 
                 html_class = self.get_html_class(hide_keys_mobile, status=status, check_key=check_key)
                 item = dict(text=str(message), tooltip=str(detailed_message), color=bg_color,
@@ -518,17 +536,16 @@ class SurveillanceBot(object):
                 # write footer with optional logo
                 logo_file = self.parameters.get('html_logo')
                 if not os.path.isfile(pjoin(self.outpath_html, logo_file)):
-                    print(f'Specified file {logo_file} not found.')
+                    logging.info(f'Specified file {logo_file} not found.')
                     logo_file = None
 
                 outfile.write(html_footer(footer_logo=logo_file))
 
         except Exception as e:
-            print(f'Could not write HTML table to {fnout}:')
-            print(traceback.format_exc())
+            logging.info(f'Could not write HTML table to {fnout}:')
+            logging.debug(traceback.format_exc())
 
-        if self.verbosity:
-            print(f'Wrote html table to {fnout}')
+        logging.info(f'Wrote html table to {fnout}')
 
     def update_status_message(self):
         timespan = timedelta(seconds=int(self.parameters.get('timespan') * 24 * 3600))
@@ -543,7 +560,6 @@ class SurveillanceBot(object):
         string.replace('\n', clear_end)
         print(string, end=clear_end, **kwargs)
         self.print_count += n_nl + 1  # number of newlines + actual print with end='\n' (no check for kwargs end!)
-        # print('pc:', self.print_count)
 
     def clear_prints(self):
         print(UP.format(length=self.print_count), end='')
@@ -551,7 +567,7 @@ class SurveillanceBot(object):
 
 
 class StationQC(object):
-    def __init__(self, parent, stream, nsl, parameters, keys, starttime, verbosity, print_func, status_track=None):
+    def __init__(self, parent, stream, nsl, parameters, keys, starttime, print_func, status_track=None):
         """
         Station Quality Check class.
         :param nsl: dictionary containing network, station and location (key: str)
@@ -568,7 +584,6 @@ class StationQC(object):
         # make a copy of parameters object to prevent accidental changes
         self.parameters = copy.deepcopy(parameters)
         self.program_starttime = starttime
-        self.verbosity = verbosity
         self.last_active = False
         self.print = print_func
 
@@ -601,8 +616,7 @@ class StationQC(object):
         current_status = self.status_dict.get(key)
 
         # change this to something more useful, SMS/EMAIL/PUSH
-        if self.verbosity:
-            self.print(f'{UTCDateTime()}: {detailed_message}', flush=False)
+        logging.info(f'{UTCDateTime()}: {detailed_message}')
 
         # if error, do not overwrite with warning
         if current_status.is_error:
@@ -641,8 +655,7 @@ class StationQC(object):
             if self.status_track.get(key) and not self.status_track.get(key)[-1]:
                 self.parent.write_html_figure(self.nwst_id, save_bytes=True)
 
-        if self.verbosity:
-            self.print(f'{UTCDateTime()}: {detailed_message}', flush=False)
+        logging.info(f'{UTCDateTime()}: {detailed_message}')
 
         # do not send error mail if this is the first run (e.g. program startup) or state was already error (unchanged)
         if self.search_previous_errors(key) is True:
@@ -674,7 +687,7 @@ class StationQC(object):
 
         # simulate an error specified in json file (dictionary: {nwst_id: key} )
         if self._simulated_error_check(key) is True:
-            print(f'Simulating Error on {self.nwst_id}, {key}')
+            logging.info(f'Simulating Error on {self.nwst_id}, {key}')
             return True
 
         previous_errors = self.status_track.get(key)
@@ -699,26 +712,22 @@ class StationQC(object):
     def send_mail(self, key, status_type, additional_message=''):
         """ Send info mail using parameters specified in parameters file """
         if not mail_functionality:
-            if self.verbosity:
-                print('Mail functionality disabled. Return')
+            logging.info('Mail functionality disabled. Return')
             return
 
         mail_params = self.parameters.get('EMAIL')
         if not mail_params:
-            if self.verbosity:
-                print('parameter "EMAIL" not set in parameter file. Return')
+            logging.info('parameter "EMAIL" not set in parameter file. Return')
             return
 
         stations_blacklist = mail_params.get('stations_blacklist')
         if stations_blacklist and self.station in stations_blacklist:
-            if self.verbosity:
-                print(f'Station {self.station} listed in blacklist. Return')
+            logging.info(f'Station {self.station} listed in blacklist. Return')
             return
 
         networks_blacklist = mail_params.get('networks_blacklist')
         if networks_blacklist and self.network in networks_blacklist:
-            if self.verbosity:
-                print(f'Station {self.station} of network {self.network} listed in blacklist. Return')
+            logging.info(f'Station {self.station} of network {self.network} listed in blacklist. Return')
             return
 
         sender = mail_params.get('sender')
@@ -729,8 +738,7 @@ class StationQC(object):
             addresses = addresses[:] + list(add_addresses)
         server = mail_params.get('mailserver')
         if not sender or not addresses:
-            if self.verbosity:
-                print('Mail sender or addresses not (correctly) defined. Return')
+            logging.info('Mail sender or addresses not (correctly) defined. Return')
             return
         dt = self.get_dt_for_action()
         text = f'{key}: Status {status_type} longer than {dt}: ' + additional_message
@@ -793,20 +801,16 @@ class StationQC(object):
                         yield address
             # file not existing
             except FileNotFoundError as e:
-                if self.verbosity:
-                    print(e)
+                logging.warning(e)
             # no dictionary
             except AttributeError as e:
-                if self.verbosity:
-                    print(f'Could not read dictionary from file {eml_filename}: {e}')
+                logging.warning(f'Could not read dictionary from file {eml_filename}: {e}')
             # other exceptions
             except Exception as e:
-                if self.verbosity:
-                    print(f'Could not open file {eml_filename}: {e}')
+                logging.warning(f'Could not open file {eml_filename}: {e}')
         # no file specified
         else:
-            if self.verbosity:
-                print('No external mail list set.')
+            logging.info('No external mail list set.')
 
         return []
 
@@ -880,9 +884,8 @@ class StationQC(object):
         timespan = self.parameters.get('timespan') * 24 * 3600
         self.analysis_starttime = self.program_starttime - timespan
 
-        if self.verbosity > 0:
-            self.print(150 * '#')
-            self.print('This is StationQT. Calculating quality for station'
+        logging.info(150 * '#')
+        logging.info('This is StationQC. Calculating quality for station'
                        ' {network}.{station}.{location}'.format(**self.nsl))
         self.voltage_analysis()
         self.pb_temp_analysis()
@@ -910,7 +913,7 @@ class StationQC(object):
             if key == 'last active':
                 items.append(fancy_timestr(message))
             elif key == 'temp':
-                items.append(str(message) + deg_str)
+                items.append(str(message) + DEG_STR)
             else:
                 items.append(str(message))
         return items
@@ -949,9 +952,8 @@ class StationQC(object):
         clock_quality_warn_level = self.parameters.get('THRESHOLDS').get('clockquality_warn')
         clock_quality_fail_level = self.parameters.get('THRESHOLDS').get('clockquality_fail')
 
-        if self.verbosity > 1:
-            self.print(40 * '-')
-            self.print('Performing Clock Quality check', flush=False)
+        logging.info(40 * '-')
+        logging.info('Performing Clock Quality check')
 
         clockQuality_warn = np.where(clock_quality < clock_quality_warn_level)[0]
         clockQuality_fail = np.where(clock_quality < clock_quality_fail_level)[0]
@@ -995,9 +997,8 @@ class StationQC(object):
         low_volt = self.parameters.get('THRESHOLDS').get('low_volt')
         high_volt = self.parameters.get('THRESHOLDS').get('high_volt')
 
-        if self.verbosity > 1:
-            self.print(40 * '-')
-            self.print('Performing Voltage check', flush=False)
+        logging.info(40 * '-')
+        logging.info('Performing Voltage check')
 
         overvolt = np.where(voltage > high_volt)[0]
         undervolt = np.where(voltage < low_volt)[0]
@@ -1036,17 +1037,16 @@ class StationQC(object):
         # average temp
         timespan = min([self.parameters.get('timespan') * 24 * 3600, int(len(temp) / trace.stats.sampling_rate)])
         nsamp_av = int(trace.stats.sampling_rate) * timespan
-        av_temp_str = str(round(np.nanmean(temp[-nsamp_av:]), 1)) + deg_str
+        av_temp_str = str(round(np.nanmean(temp[-nsamp_av:]), 1)) + DEG_STR
         # dt of average
         dt_t_str = str(timedelta(seconds=int(timespan))).replace(', 0:00:00', '')
         # current temp
         cur_temp = round(temp[-1], 1)
-        if self.verbosity > 1:
-            self.print(40 * '-')
-            self.print('Performing PowBox temperature check (EX1)', flush=False)
-            self.print(f'Average temperature at {np.nanmean(temp)}\N{DEGREE SIGN}', flush=False)
-            self.print(f'Peak temperature at {max(temp)}\N{DEGREE SIGN}', flush=False)
-            self.print(f'Min temperature at {min(temp)}\N{DEGREE SIGN}', flush=False)
+        logging.info(40 * '-')
+        logging.info('Performing PowBox temperature check (EX1)')
+        logging.info(f'Average temperature at {np.nanmean(temp)}\N{DEGREE SIGN}')
+        logging.info(f'Peak temperature at {max(temp)}\N{DEGREE SIGN}')
+        logging.info(f'Min temperature at {min(temp)}\N{DEGREE SIGN}')
         max_temp = thresholds.get('max_temp')
         t_check = np.where(temp > max_temp)[0]
         if len(t_check) > 0:
@@ -1101,10 +1101,9 @@ class StationQC(object):
             self.error(key=key,
                       detailed_message=f'Fail status for mass centering. Highest val (abs) {common_highest_val}V',)
 
-        if self.verbosity > 1:
-            self.print(40 * '-')
-            self.print('Performing mass position check', flush=False)
-            self.print(f'Average mass position at {common_highest_val}', flush=False)
+        logging.info(40 * '-')
+        logging.info('Performing mass position check')
+        logging.info(f'Average mass position at {common_highest_val}')
 
     def pb_power_analysis(self, channel='EX2', pb_dict_key='pb_SOH2'):
         """ Analyse EX2 channel of PowBox """
@@ -1115,9 +1114,8 @@ class StationQC(object):
             return
 
         voltage = trace.data * self.get_unit_factor(channel)
-        if self.verbosity > 1:
-            self.print(40 * '-')
-            self.print('Performing PowBox 12V/230V check (EX2)', flush=False)
+        logging.info(40 * '-')
+        logging.info('Performing PowBox 12V/230V check (EX2)')
         voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, channel=channel)
 
         if voltage_check:
@@ -1138,9 +1136,8 @@ class StationQC(object):
             return
 
         voltage = trace.data * self.get_unit_factor(channel)
-        if self.verbosity > 1:
-            self.print(40 * '-')
-            self.print('Performing PowBox Router/Charger check (EX3)', flush=False)
+        logging.info(40 * '-')
+        logging.info('Performing PowBox Router/Charger check (EX3)')
         voltage_check, voltage_dict, last_val = self.pb_voltage_ok(trace, voltage, pb_dict_key, channel=channel)
 
         if voltage_check:
