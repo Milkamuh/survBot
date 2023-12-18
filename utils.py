@@ -244,5 +244,5 @@ def plot_threshold_lines(fig, channel_threshold_list, parameters, **kwargs):
         for warn_thresh in channel_thresholds:
             if isinstance(warn_thresh, str):
                 warn_thresh = parameters.get('THRESHOLDS').get(warn_thresh)
-            if type(warn_thresh in (float, int)):
+            if isinstance(warn_thresh, (float, int)):
                 ax.axhline(warn_thresh, **kwargs)
