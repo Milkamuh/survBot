@@ -69,6 +69,7 @@ def set_logging_level(params: dict) -> None:
         logging.warning(
             f'Could not set logging level. Parameter logging_level = {logging_level_str} could not be interpreted.')
         return
+    logging.info(f'Setting logging level to {logging_level_str}')
     logging_level = logging_levels.get(logging_level_str.lower())
     logging.basicConfig(level=logging_level)
 
@@ -573,8 +574,6 @@ class StationQC(object):
         :param nsl: dictionary containing network, station and location (key: str)
         :param parameters: parameters dictionary from parameters.yaml file
         """
-        if status_track is None:
-            status_track = {}
         self.parent = parent
         self.stream = stream
         self.nsl = nsl
@@ -593,6 +592,8 @@ class StationQC(object):
         if not status_track:
             status_track = {}
         self.status_track = status_track
+
+        self.powbox_active = self.is_pbox_activated_check()
 
         self.start()
 
@@ -645,7 +646,8 @@ class StationQC(object):
         send_mail = False
         new_error = StatusError(count=count, show_count=self.parameters.get('warn_count'))
         if disc:
-            new_error.set_disconnected()
+            msg = disc if type(disc) == str else None
+            new_error.set_disconnected(msg)
         current_status = self.status_dict.get(key)
         if current_status.is_error:
             current_status.count += count
@@ -1027,6 +1029,9 @@ class StationQC(object):
     def pb_temp_analysis(self, channel='EX1', t_max_default=50, t_crit_default=70):
         """ Analyse PowBox temperature output. """
         key = 'temp'
+        if not self.powbox_active:
+            self.set_pbox_inactive_error(key)
+            return
         st = self.stream.select(channel=channel)
         trace = self.get_trace(st, key)
         if not trace:
@@ -1117,6 +1122,11 @@ class StationQC(object):
     def pb_power_analysis(self, channel='EX2', pb_dict_key='pb_SOH2'):
         """ Analyse EX2 channel of PowBox """
         keys = ['230V', '12V']
+        if not self.powbox_active:
+            for key in keys:
+                self.set_pbox_inactive_error(key)
+            return
+
         st = self.stream.select(channel=channel)
         trace = self.get_trace(st, keys)
         if not trace:
@@ -1138,7 +1148,11 @@ class StationQC(object):
     def pb_rout_charge_analysis(self, channel='EX3', pb_dict_key='pb_SOH3'):
         """ Analyse EX3 channel of PowBox """
         keys = ['router', 'charger']
-        pb_thresh = self.parameters.get('THRESHOLDS').get('pb_1v')
+        if not self.powbox_active:
+            for key in keys:
+                self.set_pbox_inactive_error(key)
+            return
+
         st = self.stream.select(channel=channel)
         trace = self.get_trace(st, keys)
         if not trace:
@@ -1252,6 +1266,10 @@ class StationQC(object):
         with each voltage value associated to the different steps specified in POWBOX > pb_steps. Also raises
         self.warn in case there are unassociated voltage values recorded.
         """
+        
+        if not self.powbox_active:
+            return
+
         pb_thresh = self.parameters.get('THRESHOLDS').get('pb_thresh')
         pb_ok = self.parameters.get('POWBOX').get('pb_ok')
         # possible voltage levels are keys of pb voltage level dict
@@ -1313,6 +1331,13 @@ class StationQC(object):
     def get_time(self, trace, index):
         """ get UTCDateTime from trace and index"""
         return trace.stats.starttime + trace.stats.delta * index
+
+    def is_pbox_activated_check(self):
+        return self.station not in self.parameters.get('no_pbox_stations', [])
+
+    def set_pbox_inactive_error(self, key):
+        msg = self.parameters.get('no_pbox_stations')[self.station]
+        self.error(key, detailed_message=f'PowBox not connected', disc=msg)
 
 
 class Status(object):
@@ -1381,8 +1406,10 @@ class StatusError(Status):
         self.set_error()
         self.default_message = message
 
-    def set_disconnected(self, message='DCN'):
+    def set_disconnected(self, message=None):
         self.connection_error = True
+        if not message:
+            message = 'DCN'
         self.message = message
 
     def set_connected(self):
