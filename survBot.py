@@ -1024,7 +1024,7 @@ class StationQC(object):
             self.warn(key, detailed_message=detailed_message, count=n_undervolt,
                       last_occurrence=self.get_last_occurrence(trace, undervolt))
 
-    def pb_temp_analysis(self, channel='EX1'):
+    def pb_temp_analysis(self, channel='EX1', t_max_default=50, t_crit_default=70):
         """ Analyse PowBox temperature output. """
         key = 'temp'
         st = self.stream.select(channel=channel)
@@ -1047,12 +1047,21 @@ class StationQC(object):
         logging.info(f'Average temperature at {np.nanmean(temp)}\N{DEGREE SIGN}')
         logging.info(f'Peak temperature at {max(temp)}\N{DEGREE SIGN}')
         logging.info(f'Min temperature at {min(temp)}\N{DEGREE SIGN}')
-        max_temp = thresholds.get('max_temp')
+        max_temp = thresholds.get('max_temp', t_max_default)
+        max_temp_crit = thresholds.get('critical_temp', t_crit_default)
         t_check = np.where(temp > max_temp)[0]
-        if len(t_check) > 0:
+        t_check_crit = np.where(temp > max_temp_crit)[0]
+        tcheck_message_template = ('Trace {id}: Temperature over {tmax}' + f'\N{DEGREE SIGN}'
+                                   + '! Current temperature: {temp}' + f'\N{DEGREE SIGN}')
+        if len(t_check_crit) > 0:
+            self.error(key=key,
+                      detailed_message=tcheck_message_template.format(id=trace.get_id(), tmax=max_temp, temp=cur_temp)
+                                       + self.get_last_occurrence_timestring(trace, t_check_crit),
+                      last_occurrence=self.get_last_occurrence(trace, t_check_crit))
+        elif len(t_check) > 0:
             self.warn(key=key,
-                      detailed_message=f'Trace {trace.get_id()}: '
-                                       f'Temperature over {max_temp}\N{DEGREE SIGN} at {trace.get_id()}!'
+                      detailed_message=tcheck_message_template.format(id=trace.get_id(), tmax=max_temp_crit,
+                                                                      temp=cur_temp)
                                        + self.get_last_occurrence_timestring(trace, t_check),
                       last_occurrence=self.get_last_occurrence(trace, t_check))
         else:

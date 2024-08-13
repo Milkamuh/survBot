@@ -3,11 +3,11 @@ datapath: "/data/SDS/"                    # SC3 Datapath
 networks: ["1Y", "HA", "MK"]              # select networks, list or str
 stations: "*"                             # select stations, list or str
 locations: "*"                            # select locations, list or str
-stations_blacklist: ["TEST", "EREA", "DOMV"]      # exclude these stations
+stations_blacklist: ["TEST", "EREA", "DOMV", "LFKM", "GR19", "LAKA"]      # exclude these stations
 networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
 n_track: 360               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
-timespan: 3                # Check data of the recent x days
+timespan: 7                # Check data of the recent x days
 verbosity: 0               # verbosity flag for program console output (not logging)
 logging_level: WARN        # set logging level (info, warning, debug)
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
@@ -40,6 +40,7 @@ POWBOX:
 THRESHOLDS:
   pb_thresh: 0.2               # Threshold for PowBox Voltage check +/- (V)
   max_temp: 50                 # max temperature for temperature warning
+  critical_temp: 65            # max temperature for critical warning (fail)
   low_volt: 12                 # min voltage for low voltage warning
   high_volt: 14.8              # max voltage for over voltage warning
   unclassified: 5              # min voltage samples not classified for warning
@@ -139,7 +140,7 @@ EMAIL:
   mailserver: "localhost"
   addresses: ["marcel.paffrath@rub.de", "kasper.fischer@rub.de"]  # list of mail addresses for info mails
   sender: "webmaster@geophysik.ruhr-uni-bochum.de" # mail sender
-  stations_blacklist: ['GR33']                     # do not send emails for specific stations
+  stations_blacklist: []                     # do not send emails for specific stations
   networks_blacklist: []                           # do not send emails for specific network
   # specify recipients for single stations in a yaml: key = email-address, val = station list (e.g. [1Y.GR01, 1Y.GR02])
   external_mail_list: "mailing_list.yaml"

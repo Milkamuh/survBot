@@ -9,6 +9,14 @@ import numpy as np
 from obspy import Stream
 
 
+COLORS_DICT = {'FAIL': (195, 29, 14, 255),
+               'NO DATA': (255, 255, 125, 255),
+               'WARN': (250, 192, 63, 255),
+               'OK': (185, 245, 145, 255),
+               'undefined': (240, 240, 240, 255),
+               'disc': (126, 127, 131, 255), }
+
+
 def get_bg_color(check_key, status, dt_thresh=None, hex=False):
     message = status.message
     if check_key == 'last active':
@@ -43,13 +51,9 @@ def get_color(key):
     #                'OK': (173, 255, 133, 255),
     #                'undefined': (230, 230, 230, 255),
     #                'disc': (255, 160, 40, 255),}
-    colors_dict = {'FAIL': (195, 29, 14, 255),
-                   'NO DATA': (255, 255, 125, 255),
-                   'WARN': (250, 192, 63, 255),
-                   'OK': (185, 245, 145, 255),
-                   'undefined': (240, 240, 240, 255),
-                   'disc': (126, 127, 131, 255), }
-    return colors_dict.get(key)
+    if not key in COLORS_DICT.keys():
+        key = 'undefined'
+    return COLORS_DICT.get(key)
 
 
 def get_color_mpl(key):
@@ -84,6 +88,8 @@ def get_mass_color(message):
 def get_temp_color(temp, vmin=-10, vmax=60, cmap='coolwarm'):
     """ Get an rgba temperature value back from specified cmap, linearly interpolated between vmin and vmax. """
     if type(temp) in [str]:
+        if temp in COLORS_DICT.keys():
+            return get_color(temp)
         return get_color('undefined')
     cmap = matplotlib.cm.get_cmap(cmap)
     val = (temp - vmin) / (vmax - vmin)
