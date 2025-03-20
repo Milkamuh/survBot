@@ -3,7 +3,7 @@ datapath: "/data/SDS/"                    # path to SDS data archive
 networks: ["1Y", "HA", "MK"]              # select networks, list or str
 stations: "*"                             # select stations, list or str
 locations: "*"                            # select locations, list or str
-stations_blacklist: ["DOMV", "EREA", "GR19", "GR27", "LAKA", "LFKM", "TEST"]      # exclude these stations
+stations_blacklist: ["ATHR", "DOMV", "EREA", "GR19", "GR27", "HAVD", "LAKA", "LFKM", "TEST"]      # exclude these stations
 networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
 n_track: 360               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
