@@ -4,13 +4,8 @@ WORKDIR /usr/src/app
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
+RUN apt update && apt install -y bind9-host iputils-ping
 
 COPY . .
-
-RUN mkdir -p www
-RUN ln -s www/survBot_out.html www/index.html
-RUN cp stylesheets/*.css www/
-RUN touch logo.png
-RUN cp logo.png www/logo.png
 
 CMD [ "python", "./survBot.py", "-html", "www" ]
