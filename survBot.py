@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-__version__ = '0.1'
-__author__ = 'Marcel Paffrath'
+__version__ = '0.2-docker'
+__author__ = 'Marcel Paffrath <marcel.paffrath@rub.de>'
 
 import os
 import io

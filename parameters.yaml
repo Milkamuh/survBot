@@ -133,7 +133,7 @@ add_global_links:
      "URL": "https://fdsnws.geophysik.ruhr-uni-bochum.de/map/?lat=39.5&lon=21&zoom=7&baselayer=mapnik"}
 
 # html logo at page bottom (path relative to html directory)
-html_logo: "figures/Logo_RUB_BLAU_rgb.png"
+html_logo: "logo.png"
 
 # E-mail notifications
 EMAIL:
