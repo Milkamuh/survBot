@@ -758,7 +758,42 @@ class StationQC(object):
         msg.add_alternative(html_str, subtype='html')
 
         # send message via SMTP server
-        s = smtplib.SMTP(server)
+        # set up starttls connection if server is not "localhost"
+        if server == 'localhost':
+            # create connection to localhost
+            s = smtplib.SMTP(server)
+        else:
+            user = mail_params.get('user')
+            # read user from docker secret if it is set to 'DOCKER' or
+            # read user from environment variable if it is set to 'ENV'
+            if user == 'DOCKER':
+                try:
+                    with open('/run/secrets/mail_user', 'r') as f:
+                        user = f.read().strip()
+                except FileNotFoundError as e:
+                    logging.error('Could not read mail user from docker secret')
+                    logging.error(e)
+            elif user == 'ENV':
+                user = os.environ.get(mail_params.get('user_env'))
+            
+            password = mail_params.get('password')
+            # read password from docker secret if it is set to 'DOCKER' or
+            # read password from environment variable if it is set to 'ENV'
+            if password == 'DOCKER':
+                try:
+                    with open('/run/secrets/mail_password', 'r') as f:
+                        password = f.read().strip()
+                except FileNotFoundError as e:
+                    logging.error('Could not read mail password from docker secret')
+                    logging.error(e)
+            elif password == 'ENV':
+                password = os.environ.get(mail_params.get('password_env'))
+
+            # create SSL connection to server
+            s = smtplib.SMTP_SSL(server, mail_params.get('port'))
+            s.login(mail_params.get('user'), mail_params.get('password'))
+
+        # send mail and close connection
         s.send_message(msg)
         s.quit()
 

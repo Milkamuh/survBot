@@ -137,9 +137,12 @@ html_logo: "logo.png"
 
 # E-mail notifications
 EMAIL:
-  mailserver: "localhost"
+  mailserver: "smtp.rub.de"                   # mail server
+  port: 465                               # mail port
+  user: "DOCKER"                      # mail user, read from environment variable if set to "ENV" or from docker secret if set to "DOCKER"
+  password: "DOCKER"                  # mail password, read from environment variable if set to "ENV" or from docker secret if set to "DOCKER"
   addresses: ["marcel.paffrath@rub.de", "kasper.fischer@rub.de"]  # list of mail addresses for info mails
-  sender: "webmaster@geophysik.ruhr-uni-bochum.de" # mail sender
+  sender: "RUB SeisObs <seisobs@ruhr-uni-bochum.de>" # mail sender
   stations_blacklist: []                     # do not send emails for specific stations
   networks_blacklist: []                           # do not send emails for specific network
   # specify recipients for single stations in a yaml: key = email-address, val = station list (e.g. [1Y.GR01, 1Y.GR02])
