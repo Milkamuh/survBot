@@ -1,9 +1,9 @@
 # Parameters file for Surveillance Bot
-datapath: "/data/SDS/"                    # SC3 Datapath
+datapath: "/data/SDS/"                    # path to SDS data archive
 networks: ["1Y", "HA", "MK"]              # select networks, list or str
 stations: "*"                             # select stations, list or str
 locations: "*"                            # select locations, list or str
-stations_blacklist: ["TEST", "EREA", "DOMV", "LFKM", "GR19", "LAKA"]      # exclude these stations
+stations_blacklist: ["DOMV", "EREA", "GR19", "GR27", "LAKA", "LFKM", "TEST"]      # exclude these stations
 networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
 n_track: 360               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
@@ -13,7 +13,7 @@ logging_level: WARN        # set logging level (info, warning, debug)
 track_changes: True        # tracks all changes since GUI startup by text highlighting (GUI only)
 warn_count: False          # show number of warnings and errors in table
 min_sample: 5              # minimum samples for raising Warn/FAIL
-dt_thresh: [300, 1800]     # threshold (s) for timing delay colourisation (yellow/red)
+dt_thresh: [300, 1800]     # threshold (s) for timing delay colorization (yellow/red)
 html_figures: True         # Create html figure directory and links
 reread_parameters: True    # reread parameters file (change parameters on runtime, not for itself/GUI refresh/datapath)
 
@@ -56,7 +56,7 @@ THRESHOLDS:
 #
 # For each channel a factor 'unit' for unit conversion (e.g. to SI) can be provided, as well as a 'name'
 # and 'ticks' [ymin, ymax, ystep] for plotting.
-# 'warn' and 'fail' plot horizontal lines in corresponding colors (can be str in TRESHOLDS, int/float or iterable)
+# 'warn' and 'fail' plot horizontal lines in corresponding colors (can be str in THRESHOLDS, int/float or iterable)
 # keyword "pb_SOH2" or "pb_SOH3" can be used to extract warning values from above POWBOX parameter definition
 #
 # 'transform' can be provided for plotting to perform arithmetic operations in given order, e.g.:
