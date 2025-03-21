@@ -6,6 +6,7 @@ import logging
 import matplotlib
 import numpy as np
 import smtplib
+import os
 
 from obspy import Stream
 
@@ -174,7 +175,7 @@ def transform_trace(data, transf):
         elif operator_str == '/':
             data = data / val
         else:
-            raise IOError(f'Unknown arithmethic operator string: {operator_str}')
+            raise IOError(f'Unknown arithmetic operator string: {operator_str}')
 
     return data
 

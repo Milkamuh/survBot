@@ -234,7 +234,7 @@ class SurveillanceBot(object):
         self.gaps = self.dataStream.get_gaps(min_gap=self.parameters['THRESHOLDS'].get('min_gap'))
         self.dataStream.merge()
 
-        # organise data in dictionary with key for each station
+        # organize data in dictionary with key for each station
         for trace in self.dataStream:
             nwst_id = get_nwst_id(trace)
             if not nwst_id in self.data.keys():
@@ -351,7 +351,7 @@ class SurveillanceBot(object):
             first_exec = False
 
     def console_print(self, itemlist, str_len=21, sep='|', seplen=3):
-        assert len(sep) <= seplen, f'Make sure seperator has less than {seplen} characters'
+        assert len(sep) <= seplen, f'Make sure separator has less than {seplen} characters'
         sl = sep.ljust(seplen)
         sr = sep.rjust(seplen)
         string = sl
@@ -1299,7 +1299,7 @@ class StationQC(object):
 
         # Warn in case of voltage under OK-level (1V)
         if len(under) > 0:
-            # try calculate number of occurences from gaps between indices
+            # try calculate number of occurrences from gaps between indices
             n_occurrences = len(np.where(np.diff(under) > 1)[0]) + 1
             voltage_dict[-1] = under
             self.status_other(detailed_message=f'Trace {trace.get_id()}: '
@@ -1395,15 +1395,15 @@ class StatusOK(Status):
 
 
 class StatusWarn(Status):
-    def __init__(self, message='WARN', count=1, last_occurence=None, detailed_messages=None, show_count=False):
-        super(StatusWarn, self).__init__(message=message, count=count, last_occurrence=last_occurence,
+    def __init__(self, message='WARN', count=1, last_occurrence=None, detailed_messages=None, show_count=False):
+        super(StatusWarn, self).__init__(message=message, count=count, last_occurrence=last_occurrence,
                                          detailed_messages=detailed_messages, show_count=show_count)
         self.set_warn()
 
 
 class StatusError(Status):
-    def __init__(self, message='FAIL', count=1, last_occurence=None, detailed_messages=None, show_count=False):
-        super(StatusError, self).__init__(message=message, count=count, last_occurrence=last_occurence,
+    def __init__(self, message='FAIL', count=1, last_occurrence=None, detailed_messages=None, show_count=False):
+        super(StatusError, self).__init__(message=message, count=count, last_occurrence=last_occurrence,
                                           detailed_messages=detailed_messages, show_count=show_count)
         self.set_error()
         self.default_message = message
@@ -1420,8 +1420,8 @@ class StatusError(Status):
 
 
 class StatusOther(Status):
-    def __init__(self, messages=None, count=1, last_occurence=None, detailed_messages=None):
-        super(StatusOther, self).__init__(count=count, last_occurrence=last_occurence,
+    def __init__(self, messages=None, count=1, last_occurrence=None, detailed_messages=None):
+        super(StatusOther, self).__init__(count=count, last_occurrence=last_occurrence,
                                           detailed_messages=detailed_messages)
         if messages is None:
             messages = []
