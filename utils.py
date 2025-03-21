@@ -326,5 +326,5 @@ def connect_to_mail_server(mail_params):
         else:
             logging.error('Unknown authentication type. Mails can not be sent')
             return
-        s.login(mail_params.get('user'), mail_params.get('password'))
+        s.login(user, password)
     return s
