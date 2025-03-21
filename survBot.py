@@ -23,7 +23,8 @@ from obspy.clients.filesystem.sds import Client
 
 from write_utils import get_html_text, get_html_link, get_html_row, html_footer, get_html_header, get_print_title_str, \
     init_html_table, finish_html_table, get_mail_html_header, add_html_image
-from utils import get_bg_color, get_font_color, modify_stream_for_plot, set_axis_yticks, set_axis_color, plot_axis_thresholds
+from utils import get_bg_color, get_font_color, modify_stream_for_plot, set_axis_yticks, set_axis_color, plot_axis_thresholds, \
+    connect_to_mail_server
 
 try:
     import smtplib
@@ -738,7 +739,6 @@ class StationQC(object):
         if add_addresses:
             # create copy of addresses ( [:] ) to prevent changing original, general list with addresses
             addresses = addresses[:] + list(add_addresses)
-        server = mail_params.get('mailserver')
         if not sender or not addresses:
             logging.info('Mail sender or addresses not (correctly) defined. Return')
             return
@@ -757,43 +757,10 @@ class StationQC(object):
         html_str = self.add_html_mail_body(text)
         msg.add_alternative(html_str, subtype='html')
 
-        # send message via SMTP server
-        # set up starttls connection if server is not "localhost"
-        if server == 'localhost':
-            # create connection to localhost
-            s = smtplib.SMTP(server)
-        else:
-            user = mail_params.get('user')
-            # read user from docker secret if it is set to 'DOCKER' or
-            # read user from environment variable if it is set to 'ENV'
-            if user == 'DOCKER':
-                try:
-                    with open('/run/secrets/mail_user', 'r') as f:
-                        user = f.read().strip()
-                except FileNotFoundError as e:
-                    logging.error('Could not read mail user from docker secret')
-                    logging.error(e)
-            elif user == 'ENV':
-                user = os.environ.get(mail_params.get('user_env'))
-            
-            password = mail_params.get('password')
-            # read password from docker secret if it is set to 'DOCKER' or
-            # read password from environment variable if it is set to 'ENV'
-            if password == 'DOCKER':
-                try:
-                    with open('/run/secrets/mail_password', 'r') as f:
-                        password = f.read().strip()
-                except FileNotFoundError as e:
-                    logging.error('Could not read mail password from docker secret')
-                    logging.error(e)
-            elif password == 'ENV':
-                password = os.environ.get(mail_params.get('password_env'))
-
-            # create SSL connection to server
-            s = smtplib.SMTP_SSL(server, mail_params.get('port'))
-            s.login(mail_params.get('user'), mail_params.get('password'))
-
-        # send mail and close connection
+        # connect to server, send mail and close connection
+        s = connect_to_mail_server(mail_params)
+        if not s: # if connection failed
+            return
         s.send_message(msg)
         s.quit()
 
