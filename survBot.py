@@ -704,7 +704,7 @@ class StationQC(object):
             return 'active'
         return False
 
-    def _simulated_error_check(self, key, fname='simulate_fail.json'):
+    def _simulated_error_check(self, key, fname='conf/simulate_fail.json'):
         if not os.path.isfile(fname):
             return
         with open(fname) as fid:

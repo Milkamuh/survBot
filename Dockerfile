@@ -8,4 +8,4 @@ RUN apt update && apt install -y bind9-host iputils-ping
 
 COPY . .
 
-CMD [ "python", "./survBot.py", "-html", "www" ]
+CMD [ "python", "./survBot.py", "-html", "www", "-parfile", "conf/parameters.yaml" ]
