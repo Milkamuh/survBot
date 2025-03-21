@@ -302,7 +302,7 @@ def get_credential(source, param):
     # return source if no credential was found
     return source
 
-def connect_to_mail_server(self, mail_params):
+def connect_to_mail_server(mail_params):
     """
     Connect to mail server and return server object.
     """
