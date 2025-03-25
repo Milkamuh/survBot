@@ -3,7 +3,7 @@ datapath: "/data/SDS/"                    # SC3 Datapath
 networks: ["1Y", "HA", "MK"]              # select networks, list or str
 stations: "*"                             # select stations, list or str
 locations: "*"                            # select locations, list or str
-stations_blacklist: ["TEST", "EREA", "DOMV", "LFKM", "GR19", "LAKA"]      # exclude these stations
+stations_blacklist: ["TEST", "EREA", "DOMV", "LFKM", "GR19", "LAKA", "ATHR", "HAVD"]      # exclude these stations
 networks_blacklist: []                    # exclude these networks
 interval: 60               # Perform checks every x seconds
 n_track: 360               # wait n_track * intervals before performing an action (i.e. send mail/end highlight status)
@@ -117,6 +117,8 @@ data_channels: ["HHZ", "HHN", "HHE"]
 
 
 # ---------------------------------------- OPTIONAL PARAMETERS ---------------------------------------------------------
+# deactivate powbox surveillance for stations (e.g. for solar powered), key: station, value: status message (abbr.)
+no_pbox_stations: {'GR33': 'SOL'}
 
 # add links to html table with specified key as column and value as relative link, interpretable string parameters:
 # nw (e.g. 1Y), st (e.g. GR01A), nwst_id (e.g. 1Y.GR01A)
