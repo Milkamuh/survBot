@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-__version__ = '0.1'
-__author__ = 'Marcel Paffrath'
+__version__ = '0.2-docker'
+__author__ = 'Marcel Paffrath <marcel.paffrath@rub.de>'
 
 import os
 import io
@@ -23,7 +23,8 @@ from obspy.clients.filesystem.sds import Client
 
 from write_utils import get_html_text, get_html_link, get_html_row, html_footer, get_html_header, get_print_title_str, \
     init_html_table, finish_html_table, get_mail_html_header, add_html_image
-from utils import get_bg_color, get_font_color, modify_stream_for_plot, set_axis_yticks, set_axis_color, plot_axis_thresholds
+from utils import get_bg_color, get_font_color, modify_stream_for_plot, set_axis_yticks, set_axis_color, plot_axis_thresholds, \
+    connect_to_mail_server
 
 try:
     import smtplib
@@ -233,7 +234,7 @@ class SurveillanceBot(object):
         self.gaps = self.dataStream.get_gaps(min_gap=self.parameters['THRESHOLDS'].get('min_gap'))
         self.dataStream.merge()
 
-        # organise data in dictionary with key for each station
+        # organize data in dictionary with key for each station
         for trace in self.dataStream:
             nwst_id = get_nwst_id(trace)
             if not nwst_id in self.data.keys():
@@ -350,7 +351,7 @@ class SurveillanceBot(object):
             first_exec = False
 
     def console_print(self, itemlist, str_len=21, sep='|', seplen=3):
-        assert len(sep) <= seplen, f'Make sure seperator has less than {seplen} characters'
+        assert len(sep) <= seplen, f'Make sure separator has less than {seplen} characters'
         sl = sep.ljust(seplen)
         sr = sep.rjust(seplen)
         string = sl
@@ -738,7 +739,6 @@ class StationQC(object):
         if add_addresses:
             # create copy of addresses ( [:] ) to prevent changing original, general list with addresses
             addresses = addresses[:] + list(add_addresses)
-        server = mail_params.get('mailserver')
         if not sender or not addresses:
             logging.info('Mail sender or addresses not (correctly) defined. Return')
             return
@@ -757,8 +757,10 @@ class StationQC(object):
         html_str = self.add_html_mail_body(text)
         msg.add_alternative(html_str, subtype='html')
 
-        # send message via SMTP server
-        s = smtplib.SMTP(server)
+        # connect to server, send mail and close connection
+        s = connect_to_mail_server(mail_params)
+        if not s: # if connection failed
+            return
         s.send_message(msg)
         s.quit()
 
@@ -1297,7 +1299,7 @@ class StationQC(object):
 
         # Warn in case of voltage under OK-level (1V)
         if len(under) > 0:
-            # try calculate number of occurences from gaps between indices
+            # try calculate number of occurrences from gaps between indices
             n_occurrences = len(np.where(np.diff(under) > 1)[0]) + 1
             voltage_dict[-1] = under
             self.status_other(detailed_message=f'Trace {trace.get_id()}: '
@@ -1393,15 +1395,15 @@ class StatusOK(Status):
 
 
 class StatusWarn(Status):
-    def __init__(self, message='WARN', count=1, last_occurence=None, detailed_messages=None, show_count=False):
-        super(StatusWarn, self).__init__(message=message, count=count, last_occurrence=last_occurence,
+    def __init__(self, message='WARN', count=1, last_occurrence=None, detailed_messages=None, show_count=False):
+        super(StatusWarn, self).__init__(message=message, count=count, last_occurrence=last_occurrence,
                                          detailed_messages=detailed_messages, show_count=show_count)
         self.set_warn()
 
 
 class StatusError(Status):
-    def __init__(self, message='FAIL', count=1, last_occurence=None, detailed_messages=None, show_count=False):
-        super(StatusError, self).__init__(message=message, count=count, last_occurrence=last_occurence,
+    def __init__(self, message='FAIL', count=1, last_occurrence=None, detailed_messages=None, show_count=False):
+        super(StatusError, self).__init__(message=message, count=count, last_occurrence=last_occurrence,
                                           detailed_messages=detailed_messages, show_count=show_count)
         self.set_error()
         self.default_message = message
@@ -1418,8 +1420,8 @@ class StatusError(Status):
 
 
 class StatusOther(Status):
-    def __init__(self, messages=None, count=1, last_occurence=None, detailed_messages=None):
-        super(StatusOther, self).__init__(count=count, last_occurrence=last_occurence,
+    def __init__(self, messages=None, count=1, last_occurrence=None, detailed_messages=None):
+        super(StatusOther, self).__init__(count=count, last_occurrence=last_occurrence,
                                           detailed_messages=detailed_messages)
         if messages is None:
             messages = []

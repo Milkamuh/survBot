@@ -5,6 +5,8 @@ import logging
 
 import matplotlib
 import numpy as np
+import smtplib
+import os
 
 from obspy import Stream
 
@@ -173,7 +175,7 @@ def transform_trace(data, transf):
         elif operator_str == '/':
             data = data / val
         else:
-            raise IOError(f'Unknown arithmethic operator string: {operator_str}')
+            raise IOError(f'Unknown arithmetic operator string: {operator_str}')
 
     return data
 
@@ -279,3 +281,50 @@ def annotate_voltage_states(ax, parameters, pb_key, color='0.75'):
 
         ax.annotate(out_string, (ax.get_xlim()[-1], voltage), color=color, fontsize='xx-small',
                     horizontalalignment='right')
+
+def get_credential(source, param):
+    """
+    Retrieve a credential from a Docker secret or environment variable.
+    """
+    if source == 'DOCKER':
+        try:
+            with open('/run/secrets/'+param.lower(), 'r') as f:
+                return f.read().strip()
+        except FileNotFoundError as e:
+            logging.error(f'Could not read from Docker secret at /run/secrets/{param.lower()}')
+            logging.error(e)
+    elif source == 'ENV':
+        try:
+            return os.environ.get(param.upper())
+        except Exception as e:
+            logging.error(f'Could not read from environment variable {param.upper()}')
+            logging.error(e)
+    # return source if no credential was found
+    return source
+
+def connect_to_mail_server(mail_params):
+    """
+    Connect to mail server and return server object.
+    """
+    # get server from parameters
+    server = mail_params.get('mailserver')
+    # get auth_type from parameters
+    auth_type = mail_params.get('auth_type')
+    # set up connection to mail server
+    if auth_type == 'None':
+        s = smtplib.SMTP(server)
+    else:
+        # user and password from parameters, docker secret or environment variable
+        user = get_credential(mail_params.get('user'), 'mail_user')
+        password = get_credential(mail_params.get('password'), 'mail_password')
+        # create secure connection to server
+        if auth_type == 'SSL':
+            s = smtplib.SMTP_SSL(server, mail_params.get('port'))
+        elif auth_type == 'TLS':
+            s = smtplib.SMTP(server, mail_params.get('port'))
+            s.starttls()
+        else:
+            logging.error('Unknown authentication type. Mails can not be sent')
+            return
+        s.login(user, password)
+    return s
