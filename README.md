@@ -5,6 +5,8 @@ version: 0.2
 survBot is a small program used to track station quality channels of DSEBRA stations via PowBox output over SOH channels
  by analysing contents of a Seiscomp3 datapath.
 
+ ![html_screen](survBot.png)
+
 ## Requirements
 
 The following packages are required:
